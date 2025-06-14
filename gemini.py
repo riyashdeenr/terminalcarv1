@@ -1,6 +1,34 @@
+
 from car_manager import CarManager
 from booking_manager import BookingManager
 
+
+
+client = genai.Client(api_key="AIzaSyAz5B_lFFSTXJiXFD_RakW6NQACpeJAZsM")
+#API_URL = "https://api.google.com/gemini"  # Replace with the actual Google Gemini API endpoint
+#API_KEY = "AIzaSyAz5B_lFFSTXJiXFD_RakW6NQACpeJAZsM"  # Replace with your actual API key
+
+def get_ai_response(user_query):
+   # headers = {
+    #    "Authorization": f"Bearer {API_KEY}",
+    #    "Content-Type": "application/json" 
+   # }
+    
+   # payload = {
+   #     "query": user_query
+    #}
+    
+    #response = requests.post(API_URL, json=payload, headers=headers)
+    
+    response = client.models.generate_content(
+        model="gemini-2.0-flash", contents=user_query,)
+
+    print(response.text)
+    if response.ok:
+        #return response.json()  # Assuming the response contains the AI's answer and possibly an image URL
+        return response.text  # Assuming the response contains the AI's answer and possibly an image URL
+    else:
+        
 
 class GeminiIntegration:
     """Integration with Gemini AI for sales assistance"""
