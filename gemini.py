@@ -4,7 +4,7 @@ from booking_manager import BookingManager
 
 
 
-client = genai.Client(api_key="AIzaSyAz5B_lFFSTXJiXFD_RakW6NQACpeJAZsM")
+client = genai.Client(api_key="")
 #API_URL = "https://api.google.com/gemini"  # Replace with the actual Google Gemini API endpoint
 #API_KEY = "AIzaSyAz5B_lFFSTXJiXFD_RakW6NQACpeJAZsM"  # Replace with your actual API key
 
