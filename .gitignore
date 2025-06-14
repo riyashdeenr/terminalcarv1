@@ -1,0 +1,10 @@
+# Ignore all .log files
+*.log
+
+# Ignore a specific file
+secret.txt
+
+# Ignore a folder and everything inside it
+temp/
+
+config.py

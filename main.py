@@ -3,7 +3,10 @@
 Secure Car Rental Management System
 Educational Implementation with AI Integration
 """
-
+import hashlib
+import secrets
+import base64
+import re
 import sqlite3
 import hashlib
 import secrets
@@ -26,10 +29,10 @@ from urllib.parse import urlparse, parse_qs
 # Importing components
 from database import DatabaseManager   
 from auth import AuthenticationManager
-from car_manager import CarManager
+from car_manager import CarManager 
 from booking_manager import BookingManager
 from gemini import GeminiIntegration   
-from web import WebInterface
+from web import WebInterfacez, RequestHandler
 from security import SecurityUtils
 
 
@@ -44,7 +47,7 @@ class CarRentalApp:
         self.car_manager = CarManager(self.db)
         self.booking_manager = BookingManager(self.db)
         self.gemini = GeminiIntegration(self.car_manager, self.booking_manager)
-        self.web_interface = WebInterface(self)
+        self.web_interface = WebInterfacez(self)
         
         # Insert sample data
         self.db.insert_sample_data()

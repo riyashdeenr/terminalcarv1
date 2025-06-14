@@ -2,7 +2,10 @@ import hashlib
 import secrets
 import base64
 import re
+from typing import Optional, Dict, Tuple
+from Crypto.Cipher import AES
 
+DEFAULT_ITERATIONS = 600000  # Updated from 100,000 to meet OWASP recommendations
 
 class SecurityUtils:
     """Cryptographic and security utilities"""
@@ -12,7 +15,8 @@ class SecurityUtils:
         """Generate cryptographically secure salt"""
         return secrets.token_hex(length)
     
-    DEFAULT_ITERATIONS = 600000  # Updated from 100,000 to meet OWASP recommendations
+    
+    
     @staticmethod
     def hash_password(password: str, salt: str = None) -> Tuple[str, str]:
         if salt is None:

@@ -1,6 +1,6 @@
 from database import DatabaseManager
 from security import SecurityUtils
-
+from typing import Optional, Dict, Tuple, List
 
 class CarManager:
     """Manage car inventory and operations"""

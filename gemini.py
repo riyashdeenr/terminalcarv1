@@ -1,12 +1,11 @@
 
 from car_manager import CarManager
 from booking_manager import BookingManager
+from google import genai
+from typing import Optional, Dict, Tuple, List
+from config import API_KEY  
 
-
-
-client = genai.Client(api_key="AIzaSyAz5B_lFFSTXJiXFD_RakW6NQACpeJAZsM")
-#API_URL = "https://api.google.com/gemini"  # Replace with the actual Google Gemini API endpoint
-#API_KEY = "AIzaSyAz5B_lFFSTXJiXFD_RakW6NQACpeJAZsM"  # Replace with your actual API key
+client = genai.Client(api_key=API_KEY)
 
 def get_ai_response(user_query):
    # headers = {
@@ -27,7 +26,7 @@ def get_ai_response(user_query):
     if response.ok:
         #return response.json()  # Assuming the response contains the AI's answer and possibly an image URL
         return response.text  # Assuming the response contains the AI's answer and possibly an image URL
-    else:
+    else: pass
         
 
 class GeminiIntegration:

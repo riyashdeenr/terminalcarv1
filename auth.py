@@ -1,6 +1,6 @@
 from security import SecurityUtils
 from database import DatabaseManager
-
+from typing import Optional, Dict, Tuple
 
 class AuthenticationManager:
     """Handle user authentication and session management"""

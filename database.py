@@ -1,5 +1,17 @@
 import sqlite3
 from contextlib import contextmanager
+import hashlib
+import secrets
+import base64
+import re
+import sqlite3
+import hashlib
+import secrets
+import base64
+import json
+import re
+import time
+import os
 
 class DatabaseManager:
     """Database operations and management"""

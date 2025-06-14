@@ -1,5 +1,5 @@
 import http.server
-from main import CarRentalApp
+
 
 
 class RequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -24,7 +24,7 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
 
 
 
-class WebInterface:
+class WebInterfacez:
     """Simple web interface for the application"""
     
     def __init__(self, app):
