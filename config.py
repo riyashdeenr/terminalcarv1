@@ -1,0 +1,3 @@
+DEFAULT_ITERATIONS = 600000
+DB_PATH = "car_rental.db"
+SESSION_TIMEOUT = 86400  # 24 hours
