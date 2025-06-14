@@ -23,6 +23,15 @@ import http.server
 import socketserver
 from urllib.parse import urlparse, parse_qs
 
+# Importing components
+from database import DatabaseManager   
+from auth import AuthenticationManager
+from car_manager import CarManager
+from booking_manager import BookingManager
+from gemini import GeminiIntegration   
+from web import WebInterface
+from security import SecurityUtils
+
 
 
 class CarRentalApp:
