@@ -1,61 +1,48 @@
-from security import SecurityUtils
+from security import SecurityUtils  # Import SecurityUtils
 from database import DatabaseManager
 from typing import Optional, Dict, Tuple
-import sqlite3
 from datetime import datetime, timedelta
+import sqlite3
 
 class AuthenticationManager:
     """Handle user authentication and session management"""
-    
+
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
         self.active_sessions = {}
-    
+
     def register_user(self, email: str, password: str, national_id: str, role: str = 'user') -> Tuple[bool, str]:
         """Register a new user"""
         email = SecurityUtils.sanitize_input(email)
-        
+
         if not SecurityUtils.validate_email(email):
-            return False, "Invalid email format"
-        
+            return False, "Invalid email format."
+
         is_strong, msg = SecurityUtils.check_password_strength(password)
         if not is_strong:
             return False, msg
-        
+
         # Hash password
         password_hash, salt = SecurityUtils.hash_password(password)
-        
+
         # Encrypt national ID
         encrypted_national_id = SecurityUtils.encrypt_data(national_id, password)
-        
+
         try:
             with self.db.get_connection() as conn:
-                # Insert user
-                cursor = conn.execute("""
-                    INSERT INTO users (email, password_hash, password_salt, role)
-                    VALUES (?, ?, ?, ?)
-                """, (email, password_hash, salt, role))
-                
-                user_id = cursor.lastrowid
-                
-                # Insert identity
-                conn.execute("""
-                    INSERT INTO user_identity (user_id, national_id_encrypted)
-                    VALUES (?, ?)
-                """, (user_id, encrypted_national_id))
-                
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO users (email, password_hash, password_salt, national_id, role)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (email, password_hash, salt, encrypted_national_id, role))
                 conn.commit()
-                
-                # Log registration
-                self.log_action(user_id, "USER_REGISTERED", f"User {email} registered")
-                
-                return True, "User registered successfully"
-        
+                return True, "User registered successfully."
+
         except sqlite3.IntegrityError:
-            return False, "Email already exists"
+            return False, "Email already exists."
         except Exception as e:
-            return False, f"Registration failed: {str(e)}"
-    
+            return False, f"Error registering user: {str(e)}"
+
     def login(self, email: str, password: str) -> Tuple[bool, str, Optional[Dict]]:
         """Authenticate user login"""
         email = SecurityUtils.sanitize_input(email)

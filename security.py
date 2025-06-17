@@ -2,10 +2,16 @@ import hashlib
 import secrets
 import base64
 import re
+import string
 from typing import Optional, Dict, Tuple
-from Crypto.Cipher import AES
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import padding, hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
+import os
 
-DEFAULT_ITERATIONS = 600000  # Updated from 100,000 to meet OWASP recommendations
+
+DEFAULT_ITERATIONS = 600000  # OWASP recommended iterations for PBKDF2
 
 class SecurityUtils:
     """Cryptographic and security utilities"""
@@ -18,22 +24,35 @@ class SecurityUtils:
     
     
     @staticmethod
-    def hash_password(password: str, salt: str = None) -> Tuple[str, str]:
-        if salt is None:
-            salt = SecurityUtils.generate_salt()
-        key = hashlib.pbkdf2_hmac('sha256', 
-                                password.encode('utf-8'), 
-                                salt.encode('utf-8'), 
-                                DEFAULT_ITERATIONS)
-        return base64.b64encode(key).decode('utf-8'), salt
+    def hash_password(password: str) -> Tuple[str, str]:
+        """Hash password using PBKDF2 with a random salt"""
+        salt = os.urandom(16)
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=DEFAULT_ITERATIONS,
+            backend=default_backend()
+        )
+        password_hash = base64.b64encode(kdf.derive(password.encode())).decode()
+        salt_hex = base64.b64encode(salt).decode()
+        return password_hash, salt_hex
 
     
     @staticmethod
-    def verify_password(password: str, hash_value: str, salt: str) -> bool:
+    def verify_password(password: str, stored_hash: str, stored_salt: str) -> bool:
         """Verify password against stored hash"""
-        test_hash, _ = SecurityUtils.hash_password(password, salt)
-        return secrets.compare_digest(test_hash, hash_value)
-    
+        salt = base64.b64decode(stored_salt.encode())
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=DEFAULT_ITERATIONS,
+            backend=default_backend()
+        )
+        password_hash = base64.b64encode(kdf.derive(password.encode())).decode()
+        return password_hash == stored_hash
+
     @staticmethod
     def generate_session_token() -> str:
         """Generate secure session token"""
@@ -42,25 +61,50 @@ class SecurityUtils:
     
     @staticmethod
     def encrypt_data(data: str, master_key: str) -> str:
-        """Improved encryption using SHA256 key derivation"""
-        key = hashlib.sha256(master_key.encode()).digest()
-        cipher = AES.new(key, AES.MODE_GCM)
-        ciphertext, tag = cipher.encrypt_and_digest(data.encode())
-        return base64.b64encode(cipher.nonce + tag + ciphertext).decode()
-    
+        """Encrypt data using AES CBC mode with cryptography library"""
+        salt = os.urandom(16)
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=DEFAULT_ITERATIONS,
+            backend=default_backend()
+        )
+        key = kdf.derive(master_key.encode())
+        iv = os.urandom(16)
+        padder = padding.PKCS7(128).padder()
+        padded_data = padder.update(data.encode()) + padder.finalize()
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        encryptor = cipher.encryptor()
+        ct = encryptor.update(padded_data) + encryptor.finalize()
+        # Store salt + iv + ciphertext, all base64 encoded
+        return base64.b64encode(salt + iv + ct).decode()
+
     @staticmethod
-    def decrypt_data(encrypted_data: str, key: str) -> str:
-        """Decrypt XOR encrypted data"""
+    def decrypt_data(encrypted_data: str, master_key: str) -> str:
+        """Decrypt data using AES CBC mode with cryptography library"""
         try:
-            data = base64.b64decode(encrypted_data).decode()
-            key_bytes = hashlib.sha256(key.encode()).digest()
-            decrypted = []
-            for i, char in enumerate(data):
-                decrypted.append(chr(ord(char) ^ key_bytes[i % len(key_bytes)]))
-            return ''.join(decrypted)
-        except:
-            return ""
-    
+            raw = base64.b64decode(encrypted_data)
+            salt = raw[:16]
+            iv = raw[16:32]
+            ct = raw[32:]
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=salt,
+                iterations=DEFAULT_ITERATIONS,
+                backend=default_backend()
+            )
+            key = kdf.derive(master_key.encode())
+            cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+            decryptor = cipher.decryptor()
+            padded_data = decryptor.update(ct) + decryptor.finalize()
+            unpadder = padding.PKCS7(128).unpadder()
+            data = unpadder.update(padded_data) + unpadder.finalize()
+            return data.decode()
+        except Exception as e:
+            return f"Decryption error: {str(e)}"
+
     @staticmethod
     def sanitize_input(user_input: str) -> str:
         """Sanitize user input to prevent injection attacks"""
@@ -83,14 +127,17 @@ class SecurityUtils:
         if len(password) < 8:
             return False, "Password must be at least 8 characters long"
         
-        if not re.search(r'[A-Z]', password):
+        if not any(c.isupper() for c in password):
             return False, "Password must contain at least one uppercase letter"
         
-        if not re.search(r'[a-z]', password):
+        if not any(c.islower() for c in password):
             return False, "Password must contain at least one lowercase letter"
         
-        if not re.search(r'\d', password):
-            return False, "Password must contain at least one digit"
+        if not any(c.isdigit() for c in password):
+            return False, "Password must contain at least one number"
+        
+        if not any(c in string.punctuation for c in password):
+            return False, "Password must contain at least one special character"
         
         # Check against common passwords
         common_passwords = [
@@ -101,4 +148,4 @@ class SecurityUtils:
         if password.lower() in common_passwords:
             return False, "Password is too common. Please choose a stronger password"
         
-        return True, "Password is strong"
+        return True, "Password meets security requirements"

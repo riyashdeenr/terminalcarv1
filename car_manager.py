@@ -1,6 +1,9 @@
 from database import DatabaseManager
 from security import SecurityUtils
 from typing import Optional, Dict, Tuple, List
+import base64
+import hashlib
+# from authentication import AuthenticationManager
 
 class CarManager:
     """Manage car inventory and operations"""
@@ -145,3 +148,10 @@ class CarManager:
         auth.log_action(user_id, "CAR_DELETED", f"Deleted car ID {car_id}")
         
         return True, "Car deleted successfully"
+    
+    def show_available_cars(self) -> List[Dict]:
+        """Show all available cars"""
+        with self.db.get_connection() as conn:
+            cursor = conn.execute("SELECT * FROM cars WHERE is_available = 1")
+            cars = [dict(row) for row in cursor.fetchall()]
+            return cars
