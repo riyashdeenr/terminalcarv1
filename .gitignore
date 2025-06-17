@@ -2,7 +2,7 @@
 *.log
 
 # Ignore a specific file
-secret.txt
+secrets.txt
 
 # Ignore a folder and everything inside it
 temp/

@@ -3,6 +3,17 @@ from database import DatabaseManager
 from typing import Optional, Dict, Tuple
 import sqlite3
 from datetime import datetime, timedelta
+from google import genai
+
+# Importing components
+from database import DatabaseManager   
+from auth import AuthenticationManager
+from car_manager import CarManager
+from booking_manager import BookingManager
+# from gemini import GeminiIntegration   
+from web import WebInterfacez
+from security import SecurityUtils
+
 
 class AuthenticationManager:
     """Handle user authentication and session management"""
@@ -130,87 +141,65 @@ class AuthenticationManager:
                 'role': user['role']
             }
     
-    def logout(self, session_token: str) -> bool:
-        """Logout user and invalidate session"""
-        if session_token in self.active_sessions:
-            user_info = self.active_sessions[session_token]
-            del self.active_sessions[session_token]
-            
-            with self.db.get_connection() as conn:
-                conn.execute("""
-                    UPDATE sessions SET is_active = 0 WHERE session_token = ?
-                """, (session_token,))
-                conn.commit()
-            
-            self.log_action(user_info['user_id'], "LOGOUT", "User logged out")
-            return True
-        
-        return False
+
+
+
+class CarRentalApp:
+    """Main application class"""
     
-    def validate_session(self, session_token: str) -> Optional[Dict]:
-        """Validate session token and return user info"""
-        if not session_token:
-            return None
+    def __init__(self):
+        # Initialize components
+        self.db = DatabaseManager()
+        self.auth = AuthenticationManager(self.db)
+        self.car_manager = CarManager(self.db)
+        self.booking_manager = BookingManager(self.db)
+        # self.gemini = GeminiIntegration(self.car_manager, self.booking_manager)
+        self.web_interface = WebInterfacez(self)
         
-        # Check memory cache first
-        if session_token in self.active_sessions:
-            session_info = self.active_sessions[session_token]
-            if datetime.now().isoformat() < session_info['expires_at']:
-                return session_info
+        # Insert sample data
+        self.db.insert_sample_data()
+        
+        # Create default superuser
+        self.create_default_users()
+    
+    def create_default_users(self):
+        """Create default users for testing"""
+        # Create superuser
+        self.auth.register_user("admin@carental.com", "Admin123!", "000000000", "superuser")
+        
+        # Create admin
+        self.auth.register_user("staff@carental.com", "Staff123!", "111111111", "admin")
+        
+        # Create regular user
+        self.auth.register_user("user@carental.com", "User123!", "222222222", "user")
+    
+    def user_auth_menu(self, username, password):
+        while True:
+            print("\n1. Register\n2. Login\n3. Exit")
+            choice = input("Choose an option: ")
+            if choice == "1":
+                username = input("Enter new username: ")
+                password = input("Enter new password: ")
+                if AuthenticationManager().register_user(username, password):
+                    print("Registration successful!")
+                else:
+                    print("Registration failed. Username may already exist.")
+            elif choice == "2":
+                username = input("Enter username: ")
+                password = input("Enter password: ")
+                if AuthenticationManager().login(username, password):
+                    print("Login successful!")
+                else:
+                    print("Login failed. Check your credentials.")
+            elif choice == "3":
+                print("Goodbye!")
+                break
             else:
-                # Session expired
-                del self.active_sessions[session_token]
-        
-        # Check database
-        with self.db.get_connection() as conn:
-            session = conn.execute("""
-                SELECT s.user_id, s.expires_at, u.email, u.role
-                FROM sessions s
-                JOIN users u ON s.user_id = u.id
-                WHERE s.session_token = ? AND s.is_active = 1
-            """, (session_token,)).fetchone()
-            
-            if session and datetime.now().isoformat() < session['expires_at']:
-                session_info = {
-                    'user_id': session['user_id'],
-                    'email': session['email'],
-                    'role': session['role'],
-                    'expires_at': session['expires_at']
-                }
-                self.active_sessions[session_token] = session_info
-                return session_info
-        
-        return None
-    
-    def reset_password(self, email: str, new_password: str, admin_user_id: int = None) -> Tuple[bool, str]:
-        """Reset user password (admin function)"""
-        email = SecurityUtils.sanitize_input(email)
-        
-        is_strong, msg = SecurityUtils.check_password_strength(new_password)
-        if not is_strong:
-            return False, msg
-        
-        password_hash, salt = SecurityUtils.hash_password(new_password)
-        
-        with self.db.get_connection() as conn:
-            user = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
-            if not user:
-                return False, "User not found"
-            
-            conn.execute("""
-                UPDATE users SET password_hash = ?, password_salt = ?, failed_attempts = 0, locked_until = NULL
-                WHERE email = ?
-            """, (password_hash, salt, email))
-            conn.commit()
-            
-            self.log_action(admin_user_id, "PASSWORD_RESET", f"Password reset for user {email}")
-            return True, "Password reset successfully"
-    
-    def log_action(self, user_id: Optional[int], action: str, details: str, ip_address: str = None):
-        """Log user action for audit trail"""
-        with self.db.get_connection() as conn:
-            conn.execute("""
-                INSERT INTO audit_log (user_id, action, details, ip_address)
-                VALUES (?, ?, ?, ?)
-            """, (user_id, action, details, ip_address))
-            conn.commit()
+                print("Invalid option. Try again.")
+
+if __name__ == "__main__":
+    while True:
+        print("\nWelcome to the Car Rental App!")
+        car = CarRentalApp()
+        car.create_default_users()
+        car.user_auth_menu()

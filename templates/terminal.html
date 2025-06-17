@@ -1,0 +1,16 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<div id="output"></div>
+<input id="input" type="text">
+<button onclick="sendCommand()">Send</button>
+
+<script>
+  const socket = io();
+  socket.on('response', (data) => {
+    document.getElementById('output').innerHTML += data + '<br>';
+  });
+
+  function sendCommand() {
+    const input = document.getElementById('input').value;
+    socket.emit('command', input);
+  }
+</script>

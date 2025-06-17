@@ -1,4 +1,7 @@
-
+import base64
+import os
+from google import genai
+from google.genai import types
 from car_manager import CarManager
 from booking_manager import BookingManager
 from google import genai
@@ -7,30 +10,29 @@ from config import API_KEY
 
 client = genai.Client(api_key=API_KEY)
 
-def get_ai_response(user_query):
-   # headers = {
-    #    "Authorization": f"Bearer {API_KEY}",
-    #    "Content-Type": "application/json" 
-   # }
-    
-   # payload = {
-   #     "query": user_query
-    #}
-    
-    #response = requests.post(API_URL, json=payload, headers=headers)
-    
-    response = client.models.generate_content(
-        model="gemini-2.0-flash", contents=user_query,)
 
-    print(response.text)
-    if response.ok:
-        #return response.json()  # Assuming the response contains the AI's answer and possibly an image URL
-        return response.text  # Assuming the response contains the AI's answer and possibly an image URL
-    else: pass
-        
+def get_ai_response(input: str) -> Optional[str]:
 
+    if not input:
+        return "Please provide a query."  # Handle empty input
+
+    # Generate content using the Gemini model
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=input,
+        )
+        return response.text  # Assuming the response contains the AI's answer
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return "Error communicating with AI service."  # Handle errors gracefully
+
+
+
+
+"""
 class GeminiIntegration:
-    """Integration with Gemini AI for sales assistance"""
+   # Integration with Gemini AI for sales assistance
     
     def __init__(self, car_manager: CarManager, booking_manager: BookingManager):
         self.car_manager = car_manager
@@ -38,7 +40,7 @@ class GeminiIntegration:
         self.conversation_history = {}
     
     def get_available_functions(self) -> Dict[str, Dict]:
-        """Define available functions for Gemini"""
+        # Define available functions for Gemini
         return {
             "search_cars": {
                 "description": "Search for available cars based on criteria",
@@ -69,7 +71,7 @@ class GeminiIntegration:
         }
     
     def execute_function(self, function_name: str, parameters: Dict) -> Dict:
-        """Execute a function call from Gemini"""
+        # Execute a function call from Gemini
         try:
             if function_name == "search_cars":
                 cars = self.car_manager.get_available_cars(
@@ -118,7 +120,7 @@ class GeminiIntegration:
             return {"success": False, "error": str(e)}
     
     def simulate_ai_response(self, user_message: str, session_id: str) -> str:
-        """Simulate AI response (placeholder for actual Gemini integration)"""
+        # Simulate AI response (placeholder for actual Gemini integration)
         # In a real implementation, this would call Gemini API
         # This is a simplified simulation for demonstration
         
@@ -150,3 +152,26 @@ class GeminiIntegration:
             response = "Welcome to our car rental service! I can help you:\n• Find available cars\n• Check pricing and details\n• Explain rental terms\n• Guide you through booking\n\nWhat would you like to know?"
         
         return response
+"""
+"""
+if __name__ == "__main__":
+    # Example usage: call get_ai_response with sample input
+    # user_input = input("Enter your prompt: ")
+    #response = generate_text(input)
+    print("Please enter a primpt to generate text")
+    user_input = input("> ")
+    response, error = generate_text(user_input)
+    if error:
+        print(f"Error: {error}")
+    else:
+        print(f"Generated text: {response}")
+
+"""
+if __name__ == "__main__":
+    print("Enter your prompt (or type 'exit' to quit): ")
+    while True:
+        user_input = input("> ")
+        if user_input.lower() == "exit":
+            break
+        response = get_ai_response(user_input)
+        print("AI Response:", response)

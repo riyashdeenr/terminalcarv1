@@ -28,7 +28,7 @@ application.config['SECRET_KEY'] = 'your_secret_key'
 socketio = SocketIO(application)
 
 
-CLI_COMMAND = ["python", "new.py"]
+CLI_COMMAND = ["python", "calculator.py"]
 
 @application.route('/')
 def index():
@@ -71,8 +71,6 @@ def connect():
         text=False
     )
     socketio.start_background_task(read_process_output, process)
-
-
 
 if __name__ == '__main__':
     socketio.run(application, debug=True)
