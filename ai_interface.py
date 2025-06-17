@@ -16,7 +16,7 @@ ssl._create_default_https_context = ssl._create_unverified_context
 # Configure Gemini
 GOOGLE_API_KEY = "AIzaSyAz5B_lFFSTXJiXFD_RakW6NQACpeJAZsM"  # Replace with your actual API key
 genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-2.0-flash')
 
 class AICarRentalInterface:
     def __init__(self):
