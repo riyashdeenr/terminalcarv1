@@ -466,6 +466,157 @@ def get_valid_date_input(prompt: str) -> str:
         except ValueError:
             print("Invalid date format. Please use YYYY-MM-DD format.")
 
+def display_user_menu(user_id: int, booking_manager, car_manager):
+    """Display user menu options"""
+    while True:
+        print("\n=== User Menu ===")
+        print("1. Book a car")
+        print("2. View my bookings")
+        print("3. Cancel a booking")
+        print("4. View Terms and Conditions")
+        print("5. Logout")
+        
+        choice = input("Choose an option: ").strip()
+        
+        if choice == "1":  # Book a car
+            cars = car_manager.show_available_cars()
+            if not cars:
+                print("\nNo cars available for booking.")
+                continue
+            
+            print("\nAvailable Cars:")
+            for car in cars:
+                print(f"\nCar ID: {car['id']}")
+                print(f"Make/Model: {car['make']} {car['model']}")
+                print(f"Category: {car['category']}")
+                print(f"Daily Rate: ${car['daily_rate']}/day")
+                print("-" * 30)
+            
+            while True:
+                try:
+                    car_id = int(input("\nEnter Car ID to book (0 to cancel): ").strip())
+                    if car_id == 0:
+                        print("Booking cancelled.")
+                        break
+                    
+                    selected_car = next((car for car in cars if car['id'] == car_id), None)
+                    if not selected_car:
+                        print("Invalid Car ID. Please try again.")
+                        continue
+                    
+                    # Get booking dates
+                    print("\nEnter booking details (format: YYYY-MM-DD)")
+                    start_date = get_valid_date_input("Start Date: ")
+                    
+                    while True:
+                        try:
+                            duration = int(input("Number of days to rent: ").strip())
+                            if duration <= 0:
+                                print("Duration must be at least 1 day.")
+                                continue
+                            if duration > 30:
+                                print("Maximum rental duration is 30 days.")
+                                continue
+                            break
+                        except ValueError:
+                            print("Please enter a valid number of days.")
+                    
+                    # Calculate end date and total cost
+                    end_date = (datetime.strptime(start_date, '%Y-%m-%d') + timedelta(days=duration)).strftime('%Y-%m-%d')
+                    total_cost = calculate_total_cost(selected_car['daily_rate'], duration)
+                    
+                    # Show booking summary
+                    print("\n=== Booking Summary ===")
+                    print(f"Car: {selected_car['make']} {selected_car['model']}")
+                    print(f"Category: {selected_car['category']}")
+                    print(f"Start Date: {start_date}")
+                    print(f"End Date: {end_date}")
+                    print(f"Duration: {duration} days")
+                    print(f"Daily Rate: ${selected_car['daily_rate']}")
+                    print(f"Total Cost: ${total_cost:.2f}")
+                    print("\nTerms and Conditions apply.")
+                    
+                    # Get confirmation
+                    confirm = input("\nConfirm booking? (yes/no): ").strip().lower()
+                    if confirm == 'yes':
+                        success, message = booking_manager.create_booking(
+                            user_id=user_id,
+                            car_id=car_id,
+                            start_date=start_date,
+                            end_date=end_date
+                        )
+                        print(message)
+                        if success:
+                            print(f"\nTotal amount to pay: ${total_cost:.2f}")
+                            print("Thank you for your booking!")
+                    else:
+                        print("Booking cancelled.")
+                    break
+                
+                except ValueError:
+                    print("Invalid input. Please enter a valid Car ID.")
+        
+        elif choice == "2":  # View bookings
+            bookings = booking_manager.get_user_bookings(user_id)
+            if not bookings:
+                print("\nYou have no bookings.")
+                continue
+                
+            print("\nYour Bookings:")
+            for booking in bookings:
+                print(f"\nBooking ID: {booking['id']}")
+                print(f"Car: {booking['make']} {booking['model']}")
+                print(f"Start Date: {booking['start_date']}")
+                print(f"End Date: {booking['end_date']}")
+                print(f"Total Amount: ${booking['total_amount']:.2f}")
+                print(f"Status: {booking['status']}")
+                print("-" * 30)
+        
+        elif choice == "3":  # Cancel booking
+            bookings = booking_manager.get_user_bookings(user_id)
+            if not bookings:
+                print("\nYou have no bookings to cancel.")
+                continue
+            
+            print("\nYour Bookings:")
+            for booking in bookings:
+                print(f"\nBooking ID: {booking['id']}")
+                print(f"Car: {booking['make']} {booking['model']}")
+                print(f"Start Date: {booking['start_date']}")
+                print(f"End Date: {booking['end_date']}")
+                print(f"Total Amount: ${booking['total_amount']:.2f}")
+                print(f"Status: {booking['status']}")
+                print("-" * 30)
+            
+            booking_id = input("\nEnter Booking ID to cancel (press Enter to cancel): ").strip()
+            if not booking_id:
+                print("Operation cancelled.")
+                continue
+            
+            try:
+                booking_id = int(booking_id)
+                if not any(b['id'] == booking_id for b in bookings):
+                    print("Invalid Booking ID.")
+                    continue
+                
+                confirm = input("Are you sure you want to cancel this booking? (yes/no): ").strip().lower()
+                if confirm == 'yes':
+                    success, msg = booking_manager.cancel_booking(booking_id, user_id)
+                    print(msg)
+                else:
+                    print("Cancellation aborted.")
+            except ValueError:
+                print("Invalid Booking ID. Please enter a number.")
+        
+        elif choice == "4":  # View Terms
+            display_terms_and_conditions()
+        
+        elif choice == "5":  # Logout
+            return True  # Return True to indicate logout
+        
+        else:
+            print("Invalid choice. Please try again.")
+
 def main():
     db_manager = DatabaseManager()
     auth_manager = AuthenticationManager(db_manager)
@@ -511,116 +662,11 @@ def main():
             if is_admin:
                 display_admin_menu(admin_manager, car_manager)
             else:
-                print("\n=== User Menu ===")
-                print("1. Book a car")
-                print("2. View my bookings")
-                print("3. View Terms and Conditions")
-                print("4. Logout")
-                print("5. Exit")
-                choice = input("Choose an option: ").strip()
-                
-                if choice == "1":  # Book a car
-                    cars = car_manager.show_available_cars()
-                    if not cars:
-                        print("\nNo cars available for booking.")
-                        continue
-                    
-                    print("\nAvailable Cars:")
-                    for car in cars:
-                        print(f"\nCar ID: {car['id']}")
-                        print(f"Make/Model: {car['make']} {car['model']}")
-                        print(f"Category: {car['category']}")
-                        print(f"Daily Rate: ${car['daily_rate']}/day")
-                        print("-" * 30)
-                    
-                    while True:
-                        try:
-                            car_id = int(input("\nEnter Car ID to book (0 to cancel): ").strip())
-                            if car_id == 0:
-                                print("Booking cancelled.")
-                                break
-                            
-                            selected_car = next((car for car in cars if car['id'] == car_id), None)
-                            if not selected_car:
-                                print("Invalid Car ID. Please try again.")
-                                continue
-                            
-                            # Get booking dates
-                            print("\nEnter booking details (format: YYYY-MM-DD)")
-                            start_date = get_valid_date_input("Start Date: ")
-                            
-                            while True:
-                                try:
-                                    duration = int(input("Number of days to rent: ").strip())
-                                    if duration <= 0:
-                                        print("Duration must be at least 1 day.")
-                                        continue
-                                    if duration > 30:
-                                        print("Maximum rental duration is 30 days.")
-                                        continue
-                                    break
-                                except ValueError:
-                                    print("Please enter a valid number of days.")
-                            
-                            # Calculate end date and total cost
-                            end_date = (datetime.strptime(start_date, '%Y-%m-%d') + timedelta(days=duration)).strftime('%Y-%m-%d')
-                            total_cost = calculate_total_cost(selected_car['daily_rate'], duration)
-                            
-                            # Show booking summary
-                            print("\n=== Booking Summary ===")
-                            print(f"Car: {selected_car['make']} {selected_car['model']}")
-                            print(f"Category: {selected_car['category']}")
-                            print(f"Start Date: {start_date}")
-                            print(f"End Date: {end_date}")
-                            print(f"Duration: {duration} days")
-                            print(f"Daily Rate: ${selected_car['daily_rate']}")
-                            print(f"Total Cost: ${total_cost:.2f}")
-                            print("\nTerms and Conditions apply.")
-                            
-                            # Get confirmation
-                            confirm = input("\nConfirm booking? (yes/no): ").strip().lower()
-                            if confirm == 'yes':
-                                success, message = booking_manager.create_booking(
-                                    user_id=user_id,
-                                    car_id=car_id,
-                                    start_date=start_date,
-                                    end_date=end_date
-                                )
-                                print(message)
-                                if success:
-                                    print(f"\nTotal amount to pay: ${total_cost:.2f}")
-                                    print("Thank you for your booking!")
-                            else:
-                                print("Booking cancelled.")
-                            break
-                        
-                        except ValueError:
-                            print("Invalid input. Please enter a valid Car ID.")
-                
-                elif choice == "2":
-                    bookings = booking_manager.get_user_bookings(user_id)
-                    print("\nYour Bookings:")
-                    for booking in bookings:
-                        print(f"Booking ID: {booking['id']}")
-                        print(f"Start Date: {booking['start_date']}")
-                        print(f"End Date: {booking['end_date']}")
-                        print("-" * 30)
-                
-                elif choice == "3":
-                    display_terms_and_conditions()
-                
-                elif choice == "4":
-                    if auth_manager.logout(session_token):
-                        print("Logged out successfully.")
-                    else:
-                        print("Logout failed.")
+                if display_user_menu(user_id, booking_manager, car_manager):
+                    # Logout successful
                     session_token = None
                     user_id = None
                     is_admin = False
-                
-                elif choice == "5":
-                    print("Goodbye!")
-                    break
 
 if __name__ == "__main__":
     # Save encrypted terms and conditions
