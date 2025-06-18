@@ -3,7 +3,9 @@ from security import SecurityUtils
 from typing import Optional, Dict, Tuple, List
 import base64
 import hashlib
-# from authentication import AuthenticationManager
+import sqlite3
+from datetime import datetime, timedelta
+from auth import AuthenticationManager
 
 class CarManager:
     """Manage car inventory and operations"""
@@ -155,3 +157,134 @@ class CarManager:
             cursor = conn.execute("SELECT * FROM cars WHERE is_available = 1")
             cars = [dict(row) for row in cursor.fetchall()]
             return cars
+        
+    def update_car_assets(self, car_id: int, asset_data: Dict, user_id: int) -> Tuple[bool, str]:
+        """Update car asset information (admin only)"""
+        try:
+            with self.db.get_connection() as conn:
+                # Check if car exists
+                car = conn.execute("SELECT id FROM cars WHERE id = ?", (car_id,)).fetchone()
+                if not car:
+                    return False, "Car not found"
+                
+                # Update asset information
+                conn.execute("""
+                    UPDATE cars SET 
+                        purchase_date = ?,
+                        purchase_price = ?,
+                        road_tax_expiry = ?,
+                        road_tax_amount = ?,
+                        insurance_expiry = ?,
+                        insurance_provider = ?,
+                        insurance_policy_number = ?,
+                        insurance_amount = ?,
+                        last_maintenance_date = ?,
+                        next_maintenance_date = ?,
+                        total_maintenance_cost = ?,
+                        mileage = ?
+                    WHERE id = ?
+                """, (
+                    asset_data.get('purchase_date'),
+                    asset_data.get('purchase_price'),
+                    asset_data.get('road_tax_expiry'),
+                    asset_data.get('road_tax_amount'),
+                    asset_data.get('insurance_expiry'),
+                    asset_data.get('insurance_provider'),
+                    asset_data.get('insurance_policy_number'),
+                    asset_data.get('insurance_amount'),
+                    asset_data.get('last_maintenance_date'),
+                    asset_data.get('next_maintenance_date'),
+                    asset_data.get('total_maintenance_cost'),
+                    asset_data.get('mileage'),
+                    car_id
+                ))
+                conn.commit()
+            
+            # Log action
+            auth = AuthenticationManager(self.db)
+            auth.log_action(user_id, "CAR_ASSETS_UPDATED", f"Updated asset information for car ID {car_id}")
+            
+            return True, "Car asset information updated successfully"
+        
+        except Exception as e:
+            return False, f"Failed to update car asset information: {str(e)}"
+
+    def get_car_assets(self, car_id: int) -> Optional[Dict]:
+        """Get car asset information"""
+        with self.db.get_connection() as conn:
+            car = conn.execute("""
+                SELECT id, make, model, year, license_plate, 
+                       purchase_date, purchase_price, 
+                       road_tax_expiry, road_tax_amount,
+                       insurance_expiry, insurance_provider, 
+                       insurance_policy_number, insurance_amount,
+                       last_maintenance_date, next_maintenance_date, 
+                       total_maintenance_cost, mileage
+                FROM cars WHERE id = ?
+            """, (car_id,)).fetchone()
+            return dict(car) if car else None
+
+    def get_expiring_assets(self, days: int = 30) -> Dict[str, List[Dict]]:
+        """Get cars with expiring road tax or insurance within specified days"""
+        with self.db.get_connection() as conn:
+            expiry_date = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%d')
+            
+            road_tax_expiring = conn.execute("""
+                SELECT id, make, model, license_plate, road_tax_expiry
+                FROM cars 
+                WHERE road_tax_expiry <= ? AND road_tax_expiry >= date('now')
+                ORDER BY road_tax_expiry
+            """, (expiry_date,)).fetchall()
+            
+            insurance_expiring = conn.execute("""
+                SELECT id, make, model, license_plate, 
+                       insurance_expiry, insurance_provider
+                FROM cars 
+                WHERE insurance_expiry <= ? AND insurance_expiry >= date('now')
+                ORDER BY insurance_expiry
+            """, (expiry_date,)).fetchall()
+            
+            return {
+                'road_tax_expiring': [dict(car) for car in road_tax_expiring],
+                'insurance_expiring': [dict(car) for car in insurance_expiring]
+            }
+
+    def update_maintenance_record(self, car_id: int, maintenance_data: Dict, user_id: int) -> Tuple[bool, str]:
+        """Update car maintenance record"""
+        try:
+            with self.db.get_connection() as conn:
+                current_car = conn.execute("""
+                    SELECT total_maintenance_cost FROM cars WHERE id = ?
+                """, (car_id,)).fetchone()
+                
+                if not current_car:
+                    return False, "Car not found"
+                
+                # Calculate new total maintenance cost
+                new_total = current_car['total_maintenance_cost'] + maintenance_data.get('cost', 0)
+                
+                conn.execute("""
+                    UPDATE cars SET 
+                        last_maintenance_date = ?,
+                        next_maintenance_date = ?,
+                        total_maintenance_cost = ?,
+                        mileage = ?
+                    WHERE id = ?
+                """, (
+                    maintenance_data.get('maintenance_date'),
+                    maintenance_data.get('next_maintenance_date'),
+                    new_total,
+                    maintenance_data.get('mileage'),
+                    car_id
+                ))
+                conn.commit()
+            
+            # Log action
+            auth = AuthenticationManager(self.db)
+            auth.log_action(user_id, "MAINTENANCE_UPDATED", 
+                          f"Updated maintenance record for car ID {car_id}")
+            
+            return True, "Maintenance record updated successfully"
+        
+        except Exception as e:
+            return False, f"Failed to update maintenance record: {str(e)}"

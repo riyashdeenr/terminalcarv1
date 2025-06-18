@@ -100,3 +100,80 @@ class BookingManager:
 
         except Exception as e:
             return False, f"Error cancelling booking: {str(e)}"
+
+    def calculate_booking_amount(self, car_id: int, start_date: str, end_date: str) -> float:
+        """Calculate total amount for a booking"""
+        with self.db.get_connection() as conn:
+            car = conn.execute("""
+                SELECT daily_rate FROM cars WHERE id = ?
+            """, (car_id,)).fetchone()
+            
+            if not car:
+                return 0.0
+            
+            start = datetime.strptime(start_date, '%Y-%m-%d')
+            end = datetime.strptime(end_date, '%Y-%m-%d')
+            days = (end - start).days + 1
+            
+            return car['daily_rate'] * days
+
+    def complete_booking(self, booking_id: int) -> Tuple[bool, str]:
+        """Mark a booking as completed and make car available"""
+        try:
+            with self.db.get_connection() as conn:
+                # Check if booking exists and is pending
+                booking = conn.execute("""
+                    SELECT car_id FROM bookings 
+                    WHERE id = ? AND status = 'pending'
+                """, (booking_id,)).fetchone()
+                
+                if not booking:
+                    return False, "Booking not found or already completed"
+                
+                # Update booking status
+                conn.execute("""
+                    UPDATE bookings 
+                    SET status = 'completed'
+                    WHERE id = ?
+                """, (booking_id,))
+                
+                # Make car available again
+                conn.execute("""
+                    UPDATE cars 
+                    SET is_available = 1
+                    WHERE id = ?
+                """, (booking['car_id'],))
+                
+                conn.commit()
+                return True, "Booking marked as completed"
+                
+        except Exception as e:
+            return False, f"Error completing booking: {str(e)}"
+
+    def auto_complete_expired_bookings(self) -> int:
+        """Automatically complete bookings whose end date has passed"""
+        try:
+            with self.db.get_connection() as conn:
+                # Get expired pending bookings
+                expired = conn.execute("""
+                    UPDATE bookings 
+                    SET status = 'completed'
+                    WHERE status = 'pending'
+                    AND date(end_date) < date('now')
+                    RETURNING car_id
+                """).fetchall()
+                
+                # Make cars available
+                for booking in expired:
+                    conn.execute("""
+                        UPDATE cars 
+                        SET is_available = 1
+                        WHERE id = ?
+                    """, (booking['car_id'],))
+                
+                conn.commit()
+                return len(expired)
+                
+        except Exception as e:
+            print(f"Error auto-completing bookings: {str(e)}")
+            return 0

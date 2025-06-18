@@ -113,147 +113,328 @@ def display_terms_and_conditions():
     except Exception as e:
         print(f"Error displaying terms and conditions: {str(e)}")
 
-def display_admin_menu(admin_manager: AdminManager):
+def display_admin_menu(admin_manager: AdminManager, car_manager: CarManager):
+    """Display admin management options"""
     while True:
-        print("\n=== Admin Menu ===")
-        print("1. View All Users")
-        print("2. View All Bookings")
-        print("3. View Car Status")
-        print("4. Search Bookings")
-        print("5. Search Cars")
-        print("6. Return to Main Menu")
-        print("7. Exit System")
+        print("\n=== Admin Management Menu ===")
+        print("1. User Management")
+        print("2. Car Management")
+        print("3. Booking Management")
+        print("4. Asset Management")
+        print("5. Revenue Analytics")
+        print("6. Back to Main Menu")
         
-        choice = input("Choose an option: ").strip()
+        choice = input("Enter your choice (1-6): ")
+        
+        if choice == "1":
+            display_user_management_menu(admin_manager)
+        elif choice == "2":
+            display_car_management_menu(admin_manager, car_manager)
+        elif choice == "3":
+            display_booking_management_menu(admin_manager)
+        elif choice == "4":
+            display_asset_management_menu(admin_manager, car_manager)
+        elif choice == "5":
+            display_revenue_menu(admin_manager)
+        elif choice == "6":
+            break
+        else:
+            print("Invalid choice. Please try again.")
+
+def display_user_management_menu(admin_manager):
+    """Display user management options"""
+    while True:
+        print("\n=== User Management Menu ===")
+        print("1. View All Users")
+        print("2. Search Bookings by Username")
+        print("3. Back to Admin Menu")
+        
+        choice = input("Enter your choice (1-3): ")
         
         if choice == "1":
             users = admin_manager.view_all_users()
-            print("\n=== User List ===")
+            print("\nAll Users:")
             for user in users:
                 print(f"ID: {user['id']}, Email: {user['email']}, Role: {user['role']}")
-                print(f"Created: {user['created_at']}, Last Login: {user['last_login']}")
-                print("-" * 50)
         
         elif choice == "2":
+            username = input("Enter username (email): ")
+            bookings = admin_manager.search_bookings_by_username(username)
+            print("\nUser Bookings:")
+            for booking in bookings:
+                print(f"Booking ID: {booking['id']}")
+                print(f"Car: {booking['make']} {booking['model']}")
+                print(f"Period: {booking['start_date']} to {booking['end_date']}\n")
+        
+        elif choice == "3":
+            break
+        else:
+            print("Invalid choice. Please try again.")
+
+def display_car_management_menu(admin_manager, car_manager):
+    """Display car management options"""
+    while True:
+        print("\n=== Car Management Menu ===")
+        print("1. View Car Status")
+        print("2. Search Car by License Plate")
+        print("3. Search Cars by Make/Model")
+        print("4. Set Car Maintenance Status")
+        print("5. Back to Admin Menu")
+        
+        choice = input("Enter your choice (1-5): ")
+        
+        if choice == "1":
+            status = admin_manager.view_car_status()
+            print("\nAvailable Cars:")
+            for car in status['available']:
+                print(f"{car['make']} {car['model']} ({car['license_plate']})")
+            print("\nBooked Cars:")
+            for car in status['not_available']:
+                print(f"{car['make']} {car['model']} ({car['license_plate']}) - Booked by: {car['booked_by']}")
+        
+        elif choice == "2":
+            plate = input("Enter license plate: ")
+            car = admin_manager.search_car_by_plate(plate)
+            if car:
+                print(f"\nCar Details:")
+                print(f"Make/Model: {car['make']} {car['model']}")
+                print(f"Year: {car['year']}")
+                print(f"Status: {'Available' if car['is_available'] else 'Not Available'}")
+                if car['booked_by']:
+                    print(f"Booked by: {car['booked_by']}")
+            else:
+                print("Car not found.")
+        
+        elif choice == "3":
+            make = input("Enter make: ")
+            model = input("Enter model: ")
+            cars = admin_manager.search_cars_by_make_model(make, model)
+            print("\nSearch Results:")
+            for car in cars:
+                print(f"{car['make']} {car['model']} ({car['license_plate']})")
+                print(f"Status: {'Available' if car['is_available'] else 'Not Available'}")
+                if car['booked_by']:
+                    print(f"Booked by: {car['booked_by']}\n")
+        
+        elif choice == "4":
+            car_id = input("Enter Car ID: ")
+            status = input("Set to maintenance (yes/no)? ").lower() == 'yes'
+            success, msg = car_manager.set_maintenance_status(int(car_id), status, 1)  # 1 is admin user_id
+            print(msg)
+        
+        elif choice == "5":
+            break
+        else:
+            print("Invalid choice. Please try again.")
+
+def display_booking_management_menu(admin_manager):
+    """Display booking management options"""
+    while True:
+        print("\n=== Booking Management Menu ===")
+        print("1. View All Bookings")
+        print("2. Search Booking by ID")
+        print("3. View User Bookings")
+        print("4. Back to Admin Menu")
+        
+        choice = input("Enter your choice (1-4): ")
+        
+        if choice == "1":
             bookings = admin_manager.view_user_bookings()
-            print("\n=== All Bookings ===")
+            print("\nAll Bookings:")
             for booking in bookings:
                 print(f"Booking ID: {booking['id']}")
                 print(f"User: {booking['user_email']}")
-                print(f"Car: {booking['make']} {booking['model']} ({booking['license_plate']})")
+                print(f"Car: {booking['make']} {booking['model']}")
+                print(f"Period: {booking['start_date']} to {booking['end_date']}\n")
+        
+        elif choice == "2":
+            booking_id = input("Enter Booking ID: ")
+            booking = admin_manager.search_booking_by_id(booking_id)
+            if booking:
+                print(f"\nBooking Details:")
+                print(f"User: {booking['user_email']}")
+                print(f"Car: {booking['make']} {booking['model']}")
                 print(f"Period: {booking['start_date']} to {booking['end_date']}")
-                print("-" * 50)
+            else:
+                print("Booking not found.")
         
         elif choice == "3":
-            print("\nCar Status Options:")
-            print("1. View Available Cars")
-            print("2. View Booked Cars")
-            print("3. View All Cars")
-            
-            status_choice = input("Choose an option: ").strip()
-            status = admin_manager.view_car_status()
-            
-            if status_choice == "1":
-                print("\n=== Available Cars ===")
-                for car in status['available']:
-                    print(f"{car['make']} {car['model']} ({car['license_plate']})")
-                    print(f"Daily Rate: ${car['daily_rate']}/day")
-                    print(f"Category: {car['category']}")
-                    print("-" * 30)
-            
-            elif status_choice == "2":
-                print("\n=== Booked Cars ===")
-                for car in status['not_available']:
-                    print(f"{car['make']} {car['model']} ({car['license_plate']})")
-                    print(f"Booked by: {car['booked_by']}")
-                    print(f"Period: {car['start_date']} to {car['end_date']}")
-                    print("-" * 30)
-            
-            elif status_choice == "3":
-                print("\n=== All Cars Status ===")
-                print("\nAvailable Cars:")
-                for car in status['available']:
-                    print(f"{car['make']} {car['model']} ({car['license_plate']}) - ${car['daily_rate']}/day")
-                
-                print("\nBooked Cars:")
-                for car in status['not_available']:
-                    print(f"{car['make']} {car['model']} ({car['license_plate']})")
-                    print(f"Booked by: {car['booked_by']}")
-                    print(f"Period: {car['start_date']} to {car['end_date']}")
-                    print("-" * 30)
+            user_id = input("Enter User ID: ")
+            bookings = admin_manager.view_user_bookings(int(user_id))
+            print("\nUser Bookings:")
+            for booking in bookings:
+                print(f"Booking ID: {booking['id']}")
+                print(f"Car: {booking['make']} {booking['model']}")
+                print(f"Period: {booking['start_date']} to {booking['end_date']}\n")
         
         elif choice == "4":
-            print("\nSearch Bookings by:")
-            print("1. Booking ID")
-            print("2. Username")
-            search_choice = input("Choose search option: ").strip()
+            break
+        else:
+            print("Invalid choice. Please try again.")
+
+def display_asset_management_menu(admin_manager, car_manager):
+    """Display asset management options"""
+    while True:
+        print("\n=== Asset Management Menu ===")
+        print("1. View Asset Summary")
+        print("2. View Car Asset Details")
+        print("3. Update Car Asset Information")
+        print("4. View Expiring Documents")
+        print("5. Update Maintenance Record")
+        print("6. Generate Asset Report")
+        print("7. Back to Admin Menu")
+        
+        choice = input("Enter your choice (1-7): ")
+        
+        if choice == "1":
+            summary = admin_manager.view_asset_summary()
+            print("\nFleet Summary:")
+            print(f"Total Cars: {summary['fleet_value']['total_cars']}")
+            print(f"Fleet Value: ${summary['fleet_value']['fleet_value']:,.2f}")
+            print(f"Total Maintenance Cost: ${summary['fleet_value']['total_maintenance']:,.2f}")
+            print("\nExpiring Soon:")
+            print(f"Road Tax: {summary['expiring_soon']['road_tax_expiring']} cars")
+            print(f"Insurance: {summary['expiring_soon']['insurance_expiring']} cars")
+            print(f"Maintenance: {summary['expiring_soon']['maintenance_due']} cars")
+        
+        elif choice == "2":
+            car_id = input("Enter Car ID: ")
+            details = admin_manager.get_asset_details(int(car_id))
+            if details:
+                print("\nCar Asset Details:")
+                print(f"Make/Model: {details['make']} {details['model']}")
+                print(f"Purchase Price: ${details.get('purchase_price', 'N/A'):,.2f}")
+                print(f"Total Rentals: {details['total_bookings']}")
+                print(f"Total Rental Days: {details['total_rental_days']}")
+            else:
+                print("Car not found.")
+        
+        elif choice == "3":
+            car_id = input("Enter Car ID: ")
+            asset_data = {
+                'purchase_date': input("Purchase Date (YYYY-MM-DD): "),
+                'purchase_price': float(input("Purchase Price: ")),
+                'road_tax_expiry': input("Road Tax Expiry (YYYY-MM-DD): "),
+                'road_tax_amount': float(input("Road Tax Amount: ")),
+                'insurance_expiry': input("Insurance Expiry (YYYY-MM-DD): "),
+                'insurance_provider': input("Insurance Provider: "),
+                'insurance_policy_number': input("Insurance Policy Number: "),
+                'insurance_amount': float(input("Insurance Amount: "))
+            }
+            success, msg = car_manager.update_car_assets(int(car_id), asset_data, 1)  # 1 is admin user_id
+            print(msg)
+        
+        elif choice == "4":
+            days = int(input("Check documents expiring within days (default 30): ") or 30)
+            expiring = car_manager.get_expiring_assets(days)
             
-            if search_choice == "1":
-                booking_id = input("Enter Booking ID: ").strip()
-                booking = admin_manager.search_booking_by_id(booking_id)
-                if booking:
-                    print("\n=== Booking Details ===")
-                    print(f"Booking ID: {booking['id']}")
-                    print(f"User: {booking['user_email']}")
-                    print(f"Car: {booking['make']} {booking['model']} ({booking['license_plate']})")
-                    print(f"Period: {booking['start_date']} to {booking['end_date']}")
-                else:
-                    print("Booking not found.")
+            print("\nRoad Tax Expiring:")
+            for car in expiring['road_tax_expiring']:
+                print(f"{car['make']} {car['model']} ({car['license_plate']}) - Expires: {car['road_tax_expiry']}")
             
-            elif search_choice == "2":
-                username = input("Enter username (email): ").strip()
-                bookings = admin_manager.search_bookings_by_username(username)
-                if bookings:
-                    print("\n=== Bookings Found ===")
-                    for booking in bookings:
-                        print(f"Booking ID: {booking['id']}")
-                        print(f"Car: {booking['make']} {booking['model']} ({booking['license_plate']})")
-                        print(f"Period: {booking['start_date']} to {booking['end_date']}")
-                        print("-" * 30)
-                else:
-                    print("No bookings found for this user.")
+            print("\nInsurance Expiring:")
+            for car in expiring['insurance_expiring']:
+                print(f"{car['make']} {car['model']} ({car['license_plate']}) - Expires: {car['insurance_expiry']}")
         
         elif choice == "5":
-            print("\nSearch Cars by:")
-            print("1. License Plate")
-            print("2. Make and Model")
-            search_choice = input("Choose search option: ").strip()
-            
-            if search_choice == "1":
-                license_plate = input("Enter License Plate: ").strip()
-                car = admin_manager.search_car_by_plate(license_plate)
-                if car:
-                    print("\n=== Car Details ===")
-                    print(f"Make: {car['make']}")
-                    print(f"Model: {car['model']}")
-                    print(f"License Plate: {car['license_plate']}")
-                    print(f"Daily Rate: ${car['daily_rate']}")
-                    print(f"Status: {'Available' if car['is_available'] else 'Booked'}")
-                else:
-                    print("Car not found.")
-            
-            elif search_choice == "2":
-                make = input("Enter Make: ").strip()
-                model = input("Enter Model: ").strip()
-                cars = admin_manager.search_cars_by_make_model(make, model)
-                if cars:
-                    print("\n=== Cars Found ===")
-                    for car in cars:
-                        print(f"Make: {car['make']}")
-                        print(f"Model: {car['model']}")
-                        print(f"License Plate: {car['license_plate']}")
-                        print(f"Daily Rate: ${car['daily_rate']}")
-                        print(f"Status: {'Available' if car['is_available'] else 'Booked'}")
-                        print("-" * 30)
-                else:
-                    print("No cars found matching the criteria.")
+            car_id = input("Enter Car ID: ")
+            maintenance_data = {
+                'maintenance_date': input("Maintenance Date (YYYY-MM-DD): "),
+                'next_maintenance_date': input("Next Maintenance Due (YYYY-MM-DD): "),
+                'cost': float(input("Maintenance Cost: ")),
+                'mileage': int(input("Current Mileage: "))
+            }
+            success, msg = car_manager.update_maintenance_record(int(car_id), maintenance_data, 1)  # 1 is admin user_id
+            print(msg)
         
         elif choice == "6":
-            break
+            start_date = input("Start Date (YYYY-MM-DD) or press Enter for this month: ")
+            end_date = input("End Date (YYYY-MM-DD) or press Enter for today: ")
+            report = admin_manager.generate_asset_report(start_date, end_date)
+            
+            print("\nAsset Report:")
+            print(f"Period: {report['period']['start']} to {report['period']['end']}")
+            print(f"\nFinancial Summary:")
+            print(f"Total Investment: ${report['financials']['total_investment']:,.2f}")
+            print(f"Total Maintenance: ${report['financials']['total_maintenance']:,.2f}")
+            print(f"Total Road Tax: ${report['financials']['total_road_tax']:,.2f}")
+            print(f"Total Insurance: ${report['financials']['total_insurance']:,.2f}")
+            
+            print(f"\nRental Summary:")
+            print(f"Total Bookings: {report['rentals']['total_bookings']}")
+            print(f"Total Rental Days: {report['rentals']['total_rental_days']}")
+            print(f"Cars Rented: {report['rentals']['cars_rented']}")
         
         elif choice == "7":
-            print("Goodbye!")
-            exit(0)
+            break
+        else:
+            print("Invalid choice. Please try again.")
+
+def display_revenue_menu(admin_manager):
+    """Display revenue analytics options"""
+    while True:
+        print("\n=== Revenue Analytics Menu ===")
+        print("1. Overall Revenue Statistics")
+        print("2. Car Revenue Details")
+        print("3. Revenue Alerts")
+        print("4. Back to Admin Menu")
+        
+        choice = input("Enter your choice (1-4): ")
+        
+        if choice == "1":
+            start_date = input("Start Date (YYYY-MM-DD) or press Enter for this month: ")
+            end_date = input("End Date (YYYY-MM-DD) or press Enter for today: ")
+            stats = admin_manager.get_revenue_statistics(start_date, end_date)
+            
+            print("\nOverall Revenue Statistics:")
+            print(f"Period: {stats['period']['start']} to {stats['period']['end']}")
+            print(f"Total Bookings: {stats['overall']['total_bookings']}")
+            print(f"Total Revenue: ${stats['overall']['total_revenue']:,.2f}")
+            print(f"Average Booking Value: ${stats['overall']['average_booking_value']:,.2f}")
+            
+            print("\nRevenue by Category:")
+            for cat in stats['by_category']:
+                print(f"{cat['category']}: ${cat['revenue']:,.2f} ({cat['bookings']} bookings)")
+            
+            print("\nTop Performing Cars:")
+            for car in stats['top_cars']:
+                print(f"{car['make']} {car['model']}: ${car['total_revenue']:,.2f}")
+        
+        elif choice == "2":
+            car_id = input("Enter Car ID: ")
+            start_date = input("Start Date (YYYY-MM-DD) or press Enter for this month: ")
+            end_date = input("End Date (YYYY-MM-DD) or press Enter for today: ")
+            
+            details = admin_manager.get_car_revenue_details(int(car_id), start_date, end_date)
+            if details:
+                car = details['car_details']
+                print(f"\nCar Revenue Details - {car['make']} {car['model']}:")
+                print(f"Total Revenue: ${car['total_revenue']:,.2f}")
+                print(f"Total Bookings: {car['total_bookings']}")
+                print(f"Average Revenue per Booking: ${car['avg_revenue_per_booking']:,.2f}")
+                if 'roi' in car:
+                    print(f"ROI: {car['roi']:.1f}%")
+                
+                print("\nMonthly Revenue:")
+                for month in details['monthly_revenue']:
+                    print(f"{month['month']}: ${month['revenue']:,.2f}")
+            else:
+                print("Car not found.")
+        
+        elif choice == "3":
+            alerts = admin_manager.get_revenue_alerts()
+            print("\nRevenue Performance Alerts:")
+            for alert in alerts:
+                print(f"\n{alert['make']} {alert['model']} ({alert['license_plate']}):")
+                print(f"Category: {alert['category']}")
+                print(f"Average Revenue: ${alert['car_avg_revenue']:,.2f}")
+                print(f"Category Average: ${alert['category_avg_revenue']:,.2f}")
+                print(f"Performance: {(alert['car_avg_revenue']/alert['category_avg_revenue']*100):.1f}% of category average")
+        
+        elif choice == "4":
+            break
+        else:
+            print("Invalid choice. Please try again.")
 
 def calculate_total_cost(daily_rate: float, duration: int) -> float:
     """Calculate total cost for the booking duration"""
@@ -316,7 +497,7 @@ def main():
         
         else:
             if is_admin:
-                display_admin_menu(admin_manager)
+                display_admin_menu(admin_manager, car_manager)
             else:
                 print("\n=== User Menu ===")
                 print("1. Book a car")

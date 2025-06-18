@@ -51,13 +51,24 @@ class DatabaseManager:
                     license_plate TEXT UNIQUE NOT NULL,
                     is_available BOOLEAN DEFAULT 1,
                     daily_rate REAL NOT NULL,
-                    category TEXT NOT NULL
+                    category TEXT NOT NULL,
+                    purchase_date DATE,
+                    purchase_price REAL,
+                    road_tax_expiry DATE,
+                    road_tax_amount REAL,
+                    insurance_expiry DATE,
+                    insurance_provider TEXT,
+                    insurance_policy_number TEXT,
+                    insurance_amount REAL,
+                    last_maintenance_date DATE,
+                    next_maintenance_date DATE,
+                    total_maintenance_cost REAL DEFAULT 0,
+                    mileage INTEGER DEFAULT 0
                 )
             """)
 
             # Create bookings table
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS bookings (
+            conn.execute("""                CREATE TABLE IF NOT EXISTS bookings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
                     car_id INTEGER NOT NULL,
@@ -65,6 +76,8 @@ class DatabaseManager:
                     end_date TEXT NOT NULL,
                     booking_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     terms_accepted BOOLEAN DEFAULT 1,
+                    status TEXT DEFAULT 'pending',
+                    total_amount REAL NOT NULL,
                     FOREIGN KEY (user_id) REFERENCES users (id),
                     FOREIGN KEY (car_id) REFERENCES cars (id)
                 )
