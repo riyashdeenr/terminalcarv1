@@ -294,13 +294,30 @@ def display_booking_management_menu(admin_manager):
                 print("Booking not found.")
         
         elif choice == "3":
-            user_id = input("Enter User ID: ")
-            bookings = admin_manager.view_user_bookings(int(user_id))
+            user_id = input("Enter User ID or Email: ")
+            bookings = admin_manager.view_user_bookings(user_id)
+            if not bookings:
+                print("No bookings found for this user.")
+                continue
+                
             print("\nUser Bookings:")
             for booking in bookings:
-                print(f"Booking ID: {booking['id']}")
+                # Calculate number of days and total cost
+                start_date = datetime.strptime(booking['start_date'], '%Y-%m-%d')
+                end_date = datetime.strptime(booking['end_date'], '%Y-%m-%d')
+                days = (end_date - start_date).days
+                daily_rate = booking.get('daily_rate', 0)
+                total_cost = daily_rate * days
+
+                print(f"\nBooking ID: {booking['id']}")
+                print(f"User: {booking['user_email']}")
                 print(f"Car: {booking['make']} {booking['model']}")
-                print(f"Period: {booking['start_date']} to {booking['end_date']}\n")
+                print(f"Period: {booking['start_date']} to {booking['end_date']}")
+                print(f"Duration: {days} days")
+                print(f"Daily Rate: ${daily_rate:.2f}")
+                print(f"Total Cost: ${total_cost:.2f}")
+                print(f"Status: {booking['status'].upper()}")
+                print("-" * 30)
         
         elif choice == "4":
             break

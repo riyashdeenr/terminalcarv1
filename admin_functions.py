@@ -15,19 +15,35 @@ class AdminManager:
             """).fetchall()
             return [dict(user) for user in users]
     
-    def view_user_bookings(self, user_id: int = None) -> List[Dict]:
-        """View bookings for specific user or all bookings"""
+    def view_user_bookings(self, user_identifier: str = None) -> List[Dict]:
+        """View bookings for specific user or all bookings
+        Args:
+            user_identifier: Can be either a user ID (int) or email address (str)
+        """
         with self.db.get_connection() as conn:
             query = """
                 SELECT b.*, u.email as user_email, 
-                       c.make, c.model, c.license_plate
+                       c.make, c.model, c.license_plate, c.daily_rate,
+                       b.status
                 FROM bookings b
                 JOIN users u ON b.user_id = u.id
                 JOIN cars c ON b.car_id = c.id
             """
-            if user_id:
-                query += " WHERE b.user_id = ?"
-                bookings = conn.execute(query, (user_id,)).fetchall()
+            params = []
+            
+            if user_identifier:
+                try:
+                    # Try to convert to integer (user ID)
+                    user_id = int(user_identifier)
+                    query += " WHERE b.user_id = ?"
+                    params = [user_id]
+                except ValueError:
+                    # If conversion fails, treat as email
+                    query += " WHERE u.email LIKE ?"
+                    params = [f"%{user_identifier}%"]
+            
+            if params:
+                bookings = conn.execute(query, params).fetchall()
             else:
                 bookings = conn.execute(query).fetchall()
             return [dict(booking) for booking in bookings]
@@ -70,7 +86,7 @@ class AdminManager:
         with self.db.get_connection() as conn:
             bookings = conn.execute("""
                 SELECT b.*, u.email as user_email, 
-                       c.make, c.model, c.license_plate
+                       c.make, c.model, c.license_plate, c.daily_rate
                 FROM bookings b
                 JOIN users u ON b.user_id = u.id
                 JOIN cars c ON b.car_id = c.id
