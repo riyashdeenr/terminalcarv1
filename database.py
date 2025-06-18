@@ -197,24 +197,28 @@ class DatabaseManager:
             # Insert users
             cursor.executemany("""
                 INSERT INTO users (email, password_hash, password_salt, national_id, role)
-                VALUES (?, ?, ?, ?, ?)
-            """, users_data)
-
+                VALUES (?, ?, ?, ?, ?)            """, users_data)
+            
             # Create bookings for each user
             current_date = datetime.now()
             for user_id in range(1, 11):
                 # Random start date within next 7 days
                 start_date = (current_date + timedelta(days=user_id)).strftime('%Y-%m-%d')
                 # Booking duration of 1-2 weeks
-                end_date = (current_date + timedelta(days=user_id + 7 + (user_id % 7))).strftime('%Y-%m-%d')
+                duration = 7 + (user_id % 7)
+                end_date = (current_date + timedelta(days=user_id + duration)).strftime('%Y-%m-%d')
                 
                 # Assign different cars to different users
                 car_id = user_id  # This will distribute bookings across different cars
                 
+                # Get car's daily rate and calculate total amount
+                car = cursor.execute("SELECT daily_rate FROM cars WHERE id = ?", (car_id,)).fetchone()
+                total_amount = car['daily_rate'] * duration
+                
                 cursor.execute("""
-                    INSERT INTO bookings (user_id, car_id, start_date, end_date)
-                    VALUES (?, ?, ?, ?)
-                """, (user_id, car_id, start_date, end_date))
+                    INSERT INTO bookings (user_id, car_id, start_date, end_date, total_amount, status)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (user_id, car_id, start_date, end_date, total_amount, 'completed'))
                 
                 # Update car availability
                 cursor.execute("""

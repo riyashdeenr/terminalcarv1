@@ -36,13 +36,18 @@ class BookingManager:
                 """, (car_id, start_date, start_date, end_date, end_date, start_date, end_date)).fetchone()
 
                 if existing_booking:
-                    return False, "Car is already booked for these dates."
+                    return False, "Car is already booked for these dates."                # Calculate total amount
+                car_info = conn.execute("SELECT daily_rate FROM cars WHERE id = ?", (car_id,)).fetchone()
+                start = datetime.strptime(start_date, '%Y-%m-%d')
+                end = datetime.strptime(end_date, '%Y-%m-%d')
+                duration = (end - start).days + 1
+                total_amount = car_info['daily_rate'] * duration
 
                 # Create the booking
                 conn.execute("""
-                    INSERT INTO bookings (user_id, car_id, start_date, end_date, terms_accepted)
-                    VALUES (?, ?, ?, ?, 1)
-                """, (user_id, car_id, start_date, end_date))
+                    INSERT INTO bookings (user_id, car_id, start_date, end_date, terms_accepted, total_amount, status)
+                    VALUES (?, ?, ?, ?, 1, ?, 'pending')
+                """, (user_id, car_id, start_date, end_date, total_amount))
 
                 # Update car availability
                 conn.execute("""

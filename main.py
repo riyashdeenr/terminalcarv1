@@ -214,13 +214,25 @@ def display_car_management_menu(admin_manager, car_manager):
                 print(f"{car['make']} {car['model']} ({car['license_plate']})")
                 print(f"Status: {'Available' if car['is_available'] else 'Not Available'}")
                 if car['booked_by']:
-                    print(f"Booked by: {car['booked_by']}\n")
+                    print(f"Booked by: {car['booked_by']}")
+                print()  # Add a blank line between cars
         
         elif choice == "4":
-            car_id = input("Enter Car ID: ")
-            status = input("Set to maintenance (yes/no)? ").lower() == 'yes'
-            success, msg = car_manager.set_maintenance_status(int(car_id), status, 1)  # 1 is admin user_id
-            print(msg)
+            car_id = input("Enter Car ID (press Enter to cancel): ").strip()
+            if not car_id:  # If empty input, return to menu
+                print("Operation cancelled.")
+                continue
+            try:
+                car_id = int(car_id)
+                status = input("Set to maintenance (yes/no)? ").lower().strip()
+                if not status:  # If empty input, return to menu
+                    print("Operation cancelled.")
+                    continue
+                status = status == 'yes'
+                success, msg = car_manager.set_maintenance_status(car_id, status, 1)  # 1 is admin user_id
+                print(msg)
+            except ValueError:
+                print("Invalid car ID. Please enter a valid number.")
         
         elif choice == "5":
             break
