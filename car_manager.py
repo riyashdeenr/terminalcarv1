@@ -23,7 +23,7 @@ class CarManager:
                     WHERE c.is_available = 1 AND c.is_maintenance = 0
                     AND c.id NOT IN (
                         SELECT car_id FROM bookings
-                        WHERE status = 'active'
+                        WHERE (status = 'active' OR status = 'pending')
                         AND (
                             (start_date <= ? AND end_date >= ?) OR
                             (start_date <= ? AND end_date >= ?) OR
@@ -151,12 +151,30 @@ class CarManager:
         
         return True, "Car deleted successfully"
     
-    def show_available_cars(self) -> List[Dict]:
-        """Show all available cars"""
+    def show_car_status(self) -> List[Dict]:
+        """Show status of all cars including booking information"""
         with self.db.get_connection() as conn:
-            cursor = conn.execute("SELECT * FROM cars WHERE is_available = 1")
-            cars = [dict(row) for row in cursor.fetchall()]
-            return cars
+            cars = conn.execute("""
+                SELECT 
+                    c.*,
+                    CASE
+                        WHEN c.is_maintenance = 1 THEN 'In Maintenance'
+                        WHEN b.status = 'active' THEN 'Currently Booked'
+                        WHEN b.status = 'pending' THEN 'Pending Booking'
+                        WHEN c.is_available = 1 THEN 'Available'
+                        ELSE 'Not Available'
+                    END as status,
+                    b.start_date as booking_start,
+                    b.end_date as booking_end,
+                    u.email as booked_by
+                FROM cars c
+                LEFT JOIN bookings b ON c.id = b.car_id 
+                    AND b.status IN ('active', 'pending')
+                LEFT JOIN users u ON b.user_id = u.id
+                ORDER BY c.category, c.make, c.model
+            """).fetchall()
+            
+            return [dict(car) for car in cars]
         
     def update_car_assets(self, car_id: int, asset_data: Dict, user_id: int) -> Tuple[bool, str]:
         """Update car asset information (admin only)"""
@@ -288,3 +306,24 @@ class CarManager:
         
         except Exception as e:
             return False, f"Failed to update maintenance record: {str(e)}"
+    
+    def show_available_cars(self) -> List[Dict]:
+        """Show all available cars for booking"""
+        current_date = datetime.now().strftime('%Y-%m-%d')
+        with self.db.get_connection() as conn:
+            # Get cars that are available, not in maintenance, and not currently booked
+            cars = conn.execute("""
+                SELECT c.* FROM cars c
+                WHERE c.is_available = 1 
+                AND c.is_maintenance = 0
+                AND c.id NOT IN (
+                    SELECT car_id FROM bookings
+                    WHERE (status = 'active' OR status = 'pending')
+                    AND (
+                        start_date <= ? AND end_date >= ?
+                    )
+                )
+                ORDER BY c.category, c.daily_rate
+            """, (current_date, current_date)).fetchall()
+            
+            return [dict(car) for car in cars]

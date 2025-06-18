@@ -143,27 +143,34 @@ class AdminManager:
         """Get detailed asset information for a specific car"""
         with self.db.get_connection() as conn:
             car = conn.execute("""
-                SELECT c.*, 
-                       (SELECT COUNT(*) FROM bookings b 
-                        WHERE b.car_id = c.id) as total_bookings,
-                       (SELECT SUM(JULIANDAY(end_date) - JULIANDAY(start_date)) 
+                SELECT 
+                    make, model, year, license_plate, daily_rate, category,
+                    COALESCE(purchase_date, '') as purchase_date,
+                    COALESCE(purchase_price, 0) as purchase_price,
+                    COALESCE(road_tax_expiry, '') as road_tax_expiry,
+                    COALESCE(road_tax_amount, 0) as road_tax_amount,
+                    COALESCE(insurance_expiry, '') as insurance_expiry,
+                    COALESCE(insurance_provider, '') as insurance_provider,
+                    COALESCE(insurance_policy_number, '') as insurance_policy_number,
+                    COALESCE(insurance_amount, 0) as insurance_amount,
+                    COALESCE(last_maintenance_date, '') as last_maintenance_date,
+                    COALESCE(next_maintenance_date, '') as next_maintenance_date,
+                    COALESCE(total_maintenance_cost, 0) as total_maintenance_cost,
+                    COALESCE(mileage, 0) as mileage,
+                    COALESCE((SELECT COUNT(*) FROM bookings b WHERE b.car_id = c.id), 0) as total_bookings,
+                    COALESCE((
+                        SELECT CAST(SUM(JULIANDAY(end_date) - JULIANDAY(start_date)) AS INTEGER)
                         FROM bookings b 
-                        WHERE b.car_id = c.id) as total_rental_days
+                        WHERE b.car_id = c.id
+                    ), 0) as total_rental_days
                 FROM cars c
                 WHERE c.id = ?
             """, (car_id,)).fetchone()
             
             if not car:
                 return None
-                
-            # Calculate asset metrics
-            car_dict = dict(car)
-            if car_dict['purchase_price'] and car_dict['total_maintenance_cost']:
-                car_dict['total_cost'] = car_dict['purchase_price'] + car_dict['total_maintenance_cost']
-                if car_dict['total_rental_days']:
-                    car_dict['cost_per_day'] = car_dict['total_cost'] / car_dict['total_rental_days']
             
-            return car_dict
+            return dict(car)
     
     def generate_asset_report(self, start_date: str = None, end_date: str = None) -> Dict:
         """Generate asset report for specified date range"""
@@ -272,6 +279,11 @@ class AdminManager:
     def get_car_revenue_details(self, car_id: int, start_date: str = None, end_date: str = None) -> Dict:
         """Get detailed revenue information for a specific car"""
         with self.db.get_connection() as conn:
+            # First check if the car exists
+            car_exists = conn.execute("SELECT id, make, model FROM cars WHERE id = ?", (car_id,)).fetchone()
+            if not car_exists:
+                return None
+                
             if not start_date:
                 start_date = datetime.now().replace(day=1).strftime('%Y-%m-%d')
             if not end_date:
@@ -281,20 +293,25 @@ class AdminManager:
             car_summary = conn.execute("""
                 SELECT 
                     c.*,
-                    COUNT(b.id) as total_bookings,
-                    SUM(b.total_amount) as total_revenue,
-                    AVG(b.total_amount) as avg_revenue_per_booking,
-                    SUM(JULIANDAY(b.end_date) - JULIANDAY(b.start_date)) as total_days_rented
+                    COALESCE(COUNT(b.id), 0) as total_bookings,
+                    COALESCE(SUM(b.total_amount), 0) as total_revenue,
+                    COALESCE(AVG(b.total_amount), 0) as avg_revenue_per_booking,
+                    COALESCE(SUM(JULIANDAY(b.end_date) - JULIANDAY(b.start_date)), 0) as total_days_rented
                 FROM cars c
-                LEFT JOIN bookings b ON c.id = b.car_id
+                LEFT JOIN bookings b ON c.id = b.car_id 
+                    AND b.status = 'completed'
+                    AND b.end_date BETWEEN ? AND ?
                 WHERE c.id = ?
-                AND (b.status = 'completed' OR b.status IS NULL)
-                AND (b.end_date BETWEEN ? AND ? OR b.end_date IS NULL)
                 GROUP BY c.id
-            """, (car_id, start_date, end_date)).fetchone()
+            """, (start_date, end_date, car_id)).fetchone()
 
-            if not car_summary:
-                return None
+            car_dict = dict(car_summary) if car_summary else dict(car_exists)
+            
+            # Ensure all required fields have default values
+            car_dict.setdefault('total_bookings', 0)
+            car_dict.setdefault('total_revenue', 0)
+            car_dict.setdefault('avg_revenue_per_booking', 0)
+            car_dict.setdefault('total_days_rented', 0)
 
             # Get monthly revenue breakdown
             monthly_revenue = conn.execute("""
@@ -311,17 +328,21 @@ class AdminManager:
                 ORDER BY month DESC
             """, (car_id, start_date, end_date)).fetchall()
 
-            # Calculate ROI and other metrics
-            car_dict = dict(car_summary)
-            if car_dict['purchase_price'] and car_dict['total_revenue']:
-                total_costs = (car_dict['purchase_price'] + 
-                             car_dict['total_maintenance_cost'] +
-                             car_dict['insurance_amount'] +
-                             car_dict['road_tax_amount'])
-                car_dict['roi'] = ((car_dict['total_revenue'] - total_costs) / total_costs) * 100
+            # Calculate ROI and other metrics only if we have the necessary data
+            if car_dict.get('purchase_price'):
+                total_costs = (float(car_dict.get('purchase_price', 0)) + 
+                             float(car_dict.get('total_maintenance_cost', 0)) +
+                             float(car_dict.get('insurance_amount', 0)) +
+                             float(car_dict.get('road_tax_amount', 0)))
+                if total_costs > 0:
+                    car_dict['roi'] = ((float(car_dict['total_revenue']) - total_costs) / total_costs) * 100
+                else:
+                    car_dict['roi'] = 0
                 
                 if car_dict['total_days_rented'] > 0:
                     car_dict['revenue_per_day'] = car_dict['total_revenue'] / car_dict['total_days_rented']
+                else:
+                    car_dict['revenue_per_day'] = 0
 
             return {
                 'car_details': car_dict,
