@@ -246,8 +246,15 @@ class AICarRentalInterface:
         ]
         return command in user_commands
 
-    def process_command(self, user_input: str) -> str:
-        """Process user commands, prioritizing standard commands over NLP"""
+    def process_command(self, user_input: str, **kwargs) -> str:
+        """Process user commands, prioritizing standard commands over NLP
+        
+        For interactive mode, leave kwargs empty.
+        For non-interactive mode, provide required params in kwargs:
+        - LOGIN: email, password
+        - BOOK: car_id, start_date, duration
+        - CANCEL_BOOKING: booking_id
+        """
         try:
             # Basic input validation
             if not user_input or not isinstance(user_input, str):
@@ -320,7 +327,7 @@ class AICarRentalInterface:
                 if not self._verify_command_access(command):
                     return "Please login first." if not self.session_token else \
                            "You don't have permission to execute this command."
-                return self._execute_standard_command(command)
+                return self._execute_standard_command(command, **kwargs)
 
             # Only allow NLP queries for specific scenarios
             if not self.session_token:
@@ -329,13 +336,11 @@ class AICarRentalInterface:
             # Only process as NLP if it looks like a car or booking query
             allowed_nlp_terms = ['car', 'book', 'rent', 'vehicle', 'available']
             if not any(term in input_lower for term in allowed_nlp_terms):
-                return "Command not recognized. Type 'help' for available commands."
-
-            # Process as NLP query with specific scope
+                return "Command not recognized. Type 'help' for available commands."            # Process as NLP query with specific scope
             try:
-                if 'car' in input_lower or 'available' in input_lower:
+                if 'car' in input_lower or 'available' in input_lower or 'vehicle' in input_lower:
                     results = self.get_available_cars()
-                elif 'book' in input_lower:
+                elif any(word in input_lower for word in ['book', 'booking', 'reservation', 'reservations']):
                     results = self.get_user_bookings()
                 else:
                     return "Command not recognized. Type 'help' for available commands."
@@ -361,11 +366,12 @@ class AICarRentalInterface:
                 "list.*available.*car", "view.*available.*car",
                 "what.*cars.*available", "which.*cars.*available",
                 "show.*my.*car", "available.*vehicle"
-            ],
-            "VIEW_BOOKINGS": [
+            ],            "VIEW_BOOKINGS": [
                 "my bookings", "view bookings", "show bookings", "list bookings", 
                 "view my bookings", "show my bookings", "list my bookings",
                 "current bookings", "my current bookings", "see my bookings",
+                "my reservations", "view reservations", "show reservations",
+                "current reservations", "display.*reservations?",
                 "check.*booking", "show.*my.*booking"
             ],
             "BOOK": ["^book\\s", "^rent\\s", "^hire\\s", "make.*booking", "create.*booking"],
@@ -412,16 +418,23 @@ class AICarRentalInterface:
 
         return True
 
-    def _execute_standard_command(self, command: str) -> str:
-        """Execute a standard command"""
+    def _execute_standard_command(self, command: str, **kwargs) -> str:
+        """Execute a standard command
+        
+        For interactive mode, leave kwargs empty.
+        For non-interactive mode, provide required params in kwargs:
+        - LOGIN: email, password
+        - BOOK: car_id, start_date, duration
+        - CANCEL_BOOKING: booking_id
+        """
         try:
             if command == "LOGIN":
                 if self.session_token:
                     return "Already logged in."
-                email = input("Email: ").strip()
-                password = input("Password: ").strip()
-                success, msg = self.handle_login(email, password)
-                return msg
+                if 'email' in kwargs and 'password' in kwargs:
+                    success, msg = self.handle_login(kwargs['email'], kwargs['password'])
+                    return msg
+                return "Please enter your login credentials."
 
             elif command == "LOGOUT":
                 success, msg = self.handle_logout()
@@ -436,27 +449,30 @@ class AICarRentalInterface:
                 for car in cars:
                     result += f"Car ID: {car['id']} - {car['make']} {car['model']} - ${car['daily_rate']}/day\n"
                 return result
-
+                
             elif command == "BOOK":
                 cars = self.get_available_cars()
                 if not cars:
                     return "No cars available for booking."
                 
-                print("\nAvailable Cars:")
-                for car in cars:
-                    print(f"Car ID: {car['id']} - {car['make']} {car['model']} - ${car['daily_rate']}/day")
+                # For interactive mode
+                if not all(key in kwargs for key in ['car_id', 'start_date', 'duration']):
+                    carlist = "\nAvailable Cars:\n"
+                    for car in cars:
+                        carlist += f"Car ID: {car['id']} - {car['make']} {car['model']} - ${car['daily_rate']}/day\n"
+                    return carlist + "\nPlease provide Car ID, start date (YYYY-MM-DD), and duration to book."
                 
                 try:
-                    car_id = int(input("\nEnter Car ID to book: ").strip())
-                    start_date = input("Enter start date (YYYY-MM-DD): ").strip()
-                    duration = int(input("Enter rental duration in days: ").strip())
+                    car_id = int(kwargs['car_id'])
+                    start_date = str(kwargs['start_date'])
+                    duration = int(kwargs['duration'])
                     
                     success, msg, cost = self.create_booking(car_id, start_date, duration)
                     if success:
                         return f"{msg}\nTotal cost: ${cost:.2f}"
                     return msg
-                except ValueError:
-                    return "Invalid input. Please enter valid numbers for Car ID and duration."
+                except (ValueError, KeyError, TypeError):
+                    return "Invalid input. Please provide valid Car ID and duration numbers."
 
             elif command == "VIEW_BOOKINGS":
                 bookings = self.get_user_bookings()
@@ -471,23 +487,26 @@ class AICarRentalInterface:
                     result += f"Dates: {booking['start_date']} to {booking['end_date']}\n"
                     result += f"Total Cost: ${booking.get('total_amount', 0):.2f}\n\n"
                 return result
-
+                
             elif command == "CANCEL_BOOKING":
                 bookings = self.get_user_bookings()
                 if not bookings:
                     return "No bookings found."
                 
-                print("\nYour Bookings:")
-                for booking in bookings:
-                    print(f"ID: {booking['id']} - {booking.get('make', 'N/A')} {booking.get('model', 'N/A')}")
-                    print(f"Dates: {booking['start_date']} to {booking['end_date']}")
-                    print(f"Status: {booking['status']}\n")
+                # For interactive mode
+                if 'booking_id' not in kwargs:
+                    result = "\nYour Bookings:\n"
+                    for booking in bookings:
+                        result += f"ID: {booking['id']} - {booking.get('make', 'N/A')} {booking.get('model', 'N/A')}\n"
+                        result += f"Dates: {booking['start_date']} to {booking['end_date']}\n"
+                        result += f"Status: {booking['status']}\n\n"
+                    return result + "\nPlease provide booking_id to cancel."
                 
                 try:
-                    booking_id = int(input("Enter Booking ID to cancel: ").strip())
+                    booking_id = int(kwargs['booking_id'])
                     success, msg = self.cancel_booking(booking_id)
                     return msg
-                except ValueError:
+                except (ValueError, KeyError, TypeError):
                     return "Invalid booking ID."
 
             elif command == "HELP":
