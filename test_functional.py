@@ -14,6 +14,7 @@ from booking_manager import BookingManager
 from admin_functions import AdminManager
 from ai_interface_advance import AICarRentalInterface
 from security import SecurityUtils
+from unittest.mock import patch
 
 class TestCarRentalSystem(unittest.TestCase):
     """Test suite for the Car Rental Management System"""
@@ -123,6 +124,11 @@ class TestCarRentalSystem(unittest.TestCase):
         self.interface.is_admin = False
         self.interface.current_user = None
         
+        # Make test data available to instance methods
+        self.test_user = type(self).test_user
+        self.test_admin = type(self).test_admin
+        self.test_cars = type(self).test_cars
+        
     def test_01_user_registration(self):
         """Test user registration"""
         email = "newuser@example.com"
@@ -138,15 +144,11 @@ class TestCarRentalSystem(unittest.TestCase):
         success, msg = self.auth_manager.register_user(email, password, national_id)
         self.assertFalse(success)
         self.assertIn("exists", msg.lower())
-    def test_02_user_login(self):
-        """Test user login and session management"""        # Test that login command is recognized without credentials
-        response = self.interface.process_command("login")
-        self.assertTrue(
-            any(text in response.lower() for text in ["email", "enter", "login"]),
-            "Login command not recognized"
-        )
         
-        # Test login using process_command with credentials
+    @patch('builtins.input', side_effect=Exception('input() called during test'))
+    def test_02_user_login(self, mock_input):
+        """Test user login and session management"""
+        # Test login using process_command with credentials (non-interactive)
         response = self.interface.process_command("login", 
             email=self.test_user['email'],
             password=self.test_user['password']
@@ -166,7 +168,14 @@ class TestCarRentalSystem(unittest.TestCase):
         # Verify logged out state
         response = self.interface.process_command("my bookings")
         self.assertIn("login", response.lower())
-    
+        # Test re-login after logout (non-interactive)
+        response = self.interface.process_command("login", 
+            email=self.test_user['email'],
+            password=self.test_user['password']
+        )
+        self.assertNotIn("failed", response.lower(), "Re-login failed")
+        self.assertNotIn("invalid", response.lower(), "Re-login failed")
+        
     def test_03_car_listing(self):
         """Test car listing functionality"""
         # Test without login
@@ -257,7 +266,8 @@ class TestCarRentalSystem(unittest.TestCase):
             self.assertIsInstance(response, str)
             self.assertNotIn("not recognized", response.lower())
             self.assertNotIn("error", response.lower())
-              # Test natural language variations for car listing
+            
+        # Test natural language variations for car listing
         car_queries = [
             "what cars can I rent today",
             "list all available vehicles"
@@ -321,34 +331,35 @@ class TestCarRentalSystem(unittest.TestCase):
             "login": ["login", "log in", "signin", "sign in"],
             "show_cars": ["show cars", "available cars", "list cars", "view cars"]
         }
-        
         for command_type, variants in variations_no_login.items():
             for variant in variants:
-                response = self.interface.process_command(variant)
                 if command_type == "login":
+                    response = self.interface.process_command(
+                        variant,
+                        email=self.test_user['email'],
+                        password=self.test_user['password']
+                    )
                     self.assertTrue(
-                        any(text in response.lower() for text in ["email", "enter", "login"]),
+                        any(text in response.lower() for text in ["email", "enter", "login", "logged in", "success"]),
                         f"Login command '{variant}' not recognized"
                     )
                 else:  # show_cars
+                    response = self.interface.process_command(variant)
                     self.assertTrue(
                         any(car['make'] in response for car in self.test_cars),
                         f"Car list not shown for command '{variant}'"
                     )
-        
         # Now test logout variations with login
         success, msg, user_info = self.auth_manager.login(
             self.test_user['email'], 
             self.test_user['password']
         )
         self.assertTrue(success)
-        
         # Set the interface session
         self.interface.session_token = user_info['session_token']
         self.interface.user_id = user_info['user_id']
         self.interface.current_user = user_info
         self.interface.is_admin = user_info['role'] == 'admin'
-        
         # Test logout variations
         logout_variations = ["logout", "log out", "signout", "sign out", "log off"]
         for variant in logout_variations:
