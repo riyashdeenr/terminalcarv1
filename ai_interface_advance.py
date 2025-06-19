@@ -259,11 +259,7 @@ class AICarRentalInterface:
         # Only allow NLP queries for specific scenarios
         if not self.session_token:
             return "Command not recognized. Type 'help' for available commands."
-        # Only process as NLP if it looks like a car or booking query
-        allowed_nlp_terms = ['car', 'book', 'rent', 'vehicle', 'available']
-        if not any(term in input_lower for term in allowed_nlp_terms):
-            return "Command not recognized. Type 'help' for available commands."
-        # Process as NLP query with Gemini for non-admins (optional, can restrict further)
+        # Pass any unrecognized command to NLP processor for all logged-in users
         try:
             user_context = {
                 'user_id': self.user_id,
