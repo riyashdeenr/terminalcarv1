@@ -187,7 +187,9 @@ class AICarRentalInterface:
         if not user_input:
             return "Please enter a command. Type 'help' for available commands."
         
-        logging.info(f"Processing command: {user_input}")
+        # i am commenting this out to avoid logging sensitive information
+        # Uncomment for debugging purposes, but be cautious with sensitive data
+        # logging.info(f"Processing command: {user_input}")
         
         # First try exact command matches
         exact_commands = {
@@ -330,7 +332,7 @@ class AICarRentalInterface:
     def _verify_command_access(self, command: str) -> bool:
         """Verify if user has access to execute command"""
         # Commands that don't require login
-        if command in ["LOGIN", "HELP", "SHOW_CARS"]:
+        if command in ["LOGIN", "HELP", "SHOW_CARS", "REGISTER"]:
             return True
 
         # All other commands require login
@@ -356,12 +358,59 @@ class AICarRentalInterface:
         For interactive mode, leave kwargs empty.
         For non-interactive mode, provide required params in kwargs:
         - LOGIN: email, password
+        - REGISTER: email, password, national_id
         - BOOK: car_id, start_date, duration
         - CANCEL_BOOKING: booking_id
         """
         try:
             logging.info(f"Executing command: {command} (session_token={self.session_token}, user_id={self.user_id})")
-            if command == "LOGIN":
+            if command == "REGISTER":
+                # For non-interactive testing mode
+                if all(key in kwargs for key in ['email', 'password', 'national_id']):
+                    try:
+                        success, msg = self.handle_registration(kwargs['email'], kwargs['password'], kwargs['national_id'])
+                        if success:
+                            self.audit_log_event("register", f"email={kwargs['email']}")
+                        return msg
+                    except Exception as e:
+                        logging.error(f"Registration error: {str(e)}")
+                        return "An error occurred during registration. Please try again."
+                # For interactive mode
+                try:
+                    email = input("Email: ").strip()
+                    password = input("Password: ").strip()
+                    national_id = input("National ID: ").strip()
+                    try:
+                        success, msg = self.handle_registration(email, password, national_id)
+                        if success:
+                            self.audit_log_event("register", f"email={email}")
+                        return msg
+                    except Exception as e:
+                        logging.error(f"Registration error: {str(e)}")
+                        return "An error occurred during registration. Please try again."
+                except EOFError:
+                    return "Error: Interactive input required for register command"
+
+            elif command == "VIEW_BOOKINGS":
+                try:
+                    if not self.user_id:
+                        return "You must be logged in to view your bookings."
+                    bookings = self.booking_manager.get_user_bookings(self.user_id)
+                    if not bookings:
+                        return "You have no bookings."
+                    result = ["Your Bookings:"]
+                    for b in bookings:
+                        result.append(
+                            f"Booking ID: {b['id']}, Car: {b['car_model']}, "
+                            f"From: {b['start_date']}, To: {b['end_date']}, "
+                            f"Status: {b['status']}"
+                        )
+                    return "\n".join(result)
+                except Exception as e:
+                    logging.error(f"Error fetching bookings: {e}")
+                    return "An error occurred while retrieving your bookings."
+
+            elif command == "LOGIN":
                 if self.session_token:
                     return "Already logged in."
                 # For non-interactive testing mode
