@@ -136,8 +136,8 @@ User query: {user_query}
         try:
             config = types.GenerateContentConfig(
                 tools=[
-                    lambda: self.get_all_users(user_context),
-                    lambda: self.get_my_bookings(user_context),
+                    self.get_all_users(user_context),
+                    self.get_my_bookings(user_context),
                     # Add more tool lambdas as needed
                 ]
             )
