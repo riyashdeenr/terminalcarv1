@@ -101,41 +101,45 @@ class QueryBuilder:
     # ...implement dynamic query logic as needed...
 
 class NLQueryProcessor:
-    def __init__(self, client, admin_manager):
+    def __init__(self, client, admin_manager, booking_manager, user_manager):
         self.client = client
         self.admin_manager = admin_manager
+        self.booking_manager = booking_manager
+        self.user_manager = user_manager
 
-    def get_all_bookings(self) -> dict:
-        """Returns all bookings in the system."""
-        try:
-            bookings = self.admin_manager.view_user_bookings()
-            if not bookings:
-                return {"bookings": []}
-            return {"bookings": bookings}
-        except Exception as e:
-            logging.error(f"Tool call get_all_bookings error: {str(e)}")
-            return {"error": str(e)}
+    # Tool: Get all users (admin only)
+    def get_all_users(self, user_context):
+        if not user_context.get('is_admin'):
+            return {"error": "You do not have permission to view all users."}
+        users = self.admin_manager.view_all_users()
+        return {"users": users}
 
-    def get_bookings_by_status(self, status: str) -> dict:
-        """Returns all bookings with the given status."""
-        try:
-            bookings = self.admin_manager.view_user_bookings()
-            filtered = [b for b in bookings if b.get('status', '').lower() == status.lower()]
-            return {"bookings": filtered}
-        except Exception as e:
-            logging.error(f"Tool call get_bookings_by_status error: {str(e)}")
-            return {"error": str(e)}
+    # Tool: Get bookings for current user
+    def get_my_bookings(self, user_context):
+        user_id = user_context.get('user_id')
+        if not user_id:
+            return {"error": "You must be logged in to view your bookings."}
+        bookings = self.booking_manager.get_user_bookings(user_id)
+        return {"bookings": bookings}
+
+    # Add more tool functions as needed...
 
     def process(self, user_query: str, user_context: dict = None) -> str:
-        """Process a natural language query using Gemini and return the response as a string, with tool calling support."""
+        """
+        Process a natural language query using Gemini and return the response as a string, with tool calling support.
+        """
         prompt = f"""
-You are an AI assistant for a car rental system. You can call tools to fetch live data. If the user asks to see all bookings, call the get_all_bookings tool. If the user asks for bookings by status, call get_bookings_by_status with the appropriate status.
+You are an AI assistant for a car rental system. Use the available tools to answer user queries.
 User context: {user_context}
 User query: {user_query}
 """
         try:
             config = types.GenerateContentConfig(
-                tools=[self.get_all_bookings, self.get_bookings_by_status]
+                tools=[
+                    lambda: self.get_all_users(user_context),
+                    lambda: self.get_my_bookings(user_context),
+                    # Add more tool lambdas as needed
+                ]
             )
             response = self.client.models.generate_content(
                 model="gemini-2.5-flash",
@@ -166,7 +170,7 @@ class AICarRentalInterface:
         # Gemini/AI model setup
         self.client = genai.Client(api_key=GOOGLE_API_KEY)
         self.query_builder = QueryBuilder(self.db_manager)
-        self.nl_processor = NLQueryProcessor(self.client, self.admin_manager)
+        self.nl_processor = NLQueryProcessor(self.client, self.admin_manager, self.booking_manager, self.auth_manager)
         
         logging.info("AICarRentalInterface initialized.")
         
@@ -259,7 +263,7 @@ class AICarRentalInterface:
         allowed_nlp_terms = ['car', 'book', 'rent', 'vehicle', 'available']
         if not any(term in input_lower for term in allowed_nlp_terms):
             return "Command not recognized. Type 'help' for available commands."
-        # Process as NLP query with Gemini
+        # Process as NLP query with Gemini for non-admins (optional, can restrict further)
         try:
             user_context = {
                 'user_id': self.user_id,
@@ -366,53 +370,7 @@ class AICarRentalInterface:
         """
         try:
             logging.info(f"Executing command: {command} (session_token={self.session_token}, user_id={self.user_id})")
-            if command == "REGISTER":
-                # For non-interactive testing mode
-                if all(key in kwargs for key in ['email', 'password', 'national_id']):
-                    try:
-                        success, msg = self.handle_registration(kwargs['email'], kwargs['password'], kwargs['national_id'])
-                        if success:
-                            self.audit_log_event("register", f"email={kwargs['email']}")
-                        return msg
-                    except Exception as e:
-                        logging.error(f"Registration error: {str(e)}")
-                        return "An error occurred during registration. Please try again."
-                # For interactive mode
-                try:
-                    email = input("Email: ").strip()
-                    password = input("Password: ").strip()
-                    national_id = input("National ID: ").strip()
-                    try:
-                        success, msg = self.handle_registration(email, password, national_id)
-                        if success:
-                            self.audit_log_event("register", f"email={email}")
-                        return msg
-                    except Exception as e:
-                        logging.error(f"Registration error: {str(e)}")
-                        return "An error occurred during registration. Please try again."
-                except EOFError:
-                    return "Error: Interactive input required for register command"
-
-            elif command == "VIEW_BOOKINGS":
-                try:
-                    if not self.user_id:
-                        return "You must be logged in to view your bookings."
-                    bookings = self.booking_manager.get_user_bookings(self.user_id)
-                    if not bookings:
-                        return "You have no bookings."
-                    result = ["Your Bookings:"]
-                    for b in bookings:
-                        result.append(
-                            f"Booking ID: {b['id']}, Car: {b['car_model']}, "
-                            f"From: {b['start_date']}, To: {b['end_date']}, "
-                            f"Status: {b['status']}"
-                        )
-                    return "\n".join(result)
-                except Exception as e:
-                    logging.error(f"Error fetching bookings: {e}")
-                    return "An error occurred while retrieving your bookings."
-
-            elif command == "LOGIN":
+            if command == "LOGIN":
                 if self.session_token:
                     return "Already logged in."
                 # For non-interactive testing mode
@@ -465,52 +423,11 @@ class AICarRentalInterface:
                     return "An error occurred while retrieving cars. Please try again."
 
             elif command == "BOOK":
-                if not self.terms_accepted:
-                    return "You must accept the terms and conditions before booking. Type 'accept terms' to continue."
-                try:
-                    cars = self.get_available_cars()
-                    if not cars:
-                        return "No cars available for booking."
-                    # For non-interactive testing mode
-                    if all(key in kwargs for key in ['car_id', 'start_date', 'duration']):
-                        try:
-                            car_id = int(SecurityValidator.sanitize_string(str(kwargs['car_id'])))
-                            start_date = SecurityValidator.sanitize_string(str(kwargs['start_date']))
-                            duration = int(SecurityValidator.sanitize_string(str(kwargs['duration'])))
-                            success, msg, cost = self.create_booking(car_id, start_date, duration)
-                            if success:
-                                self.audit_log_event("book", f"car_id={car_id} start_date={start_date} duration={duration}")
-                                return f"Booking successful\n{msg}\nTotal cost: ${cost:.2f}"
-                            return msg
-                        except (ValueError, KeyError, TypeError):
-                            return "Invalid booking parameters provided."
-                        except Exception as e:
-                            logging.error(f"Booking error: {str(e)}")
-                            return "An error occurred while booking. Please try again."
-                    # For interactive mode
-                    result = "\nAvailable Cars:\n"
-                    for car in cars:
-                        result += f"Car ID: {car['id']} - {car['make']} {car['model']} - ${car['daily_rate']:.2f}/day\n"
-                    try:
-                        print(result)
-                        car_id = int(SecurityValidator.sanitize_string(input("\nEnter Car ID to book: ").strip()))
-                        start_date = SecurityValidator.sanitize_string(input("Enter start date (YYYY-MM-DD): ").strip())
-                        duration = int(SecurityValidator.sanitize_string(input("Enter rental duration in days: ").strip()))
-                        try:
-                            success, msg, cost = self.create_booking(car_id, start_date, duration)
-                            if success:
-                                self.audit_log_event("book", f"car_id={car_id} start_date={start_date} duration={duration}")
-                                return f"Booking successful\n{msg}\nTotal cost: ${cost:.2f}"
-                            return msg
-                        except Exception as e:
-                            logging.error(f"Booking error: {str(e)}")
-                            return "An error occurred while booking. Please try again."
-                    except (ValueError, EOFError, KeyboardInterrupt):
-                        return "Booking cancelled. Please provide valid Car ID and duration."
-                except Exception as e:
-                    logging.error(f"Booking error: {str(e)}")
-                    return "An error occurred while booking. Please try again."
-
+                result = handler(
+                    kwargs.get('car_id'), 
+                    kwargs.get('start_date'), 
+                    kwargs.get('duration')
+                )
             elif command == "CANCEL_BOOKING":
                 try:
                     bookings = self.get_user_bookings()
@@ -612,16 +529,6 @@ class AICarRentalInterface:
                 except Exception as e:
                     logging.error(f"View all revenue error: {str(e)}")
                     return "An error occurred while retrieving revenue statistics. Please try again."
-                
-            elif command == "VIEW_TERMS":
-                try:
-                    result = read_and_decrypt_terms()
-                    return result
-                except Exception as e:
-                    logging.error(f"View T&C error: {str(e)}")
-                    return "An error occurred while retrieving terms and conditions. Please try again."
-                
-
             elif command == "HELP":
                 help_text = "\nAvailable Commands:\n"
                 help_text += "- login: Log into your account\n"
@@ -768,6 +675,8 @@ class AICarRentalInterface:
         logging.info("Displaying terms and conditions.")
         try:
             decrypted_terms = read_and_decrypt_terms()
+            if decrypted_terms is None:
+                return "Unable to load terms and conditions. Please contact support."
             return decrypted_terms + "\nType 'accept terms' to agree."
         except FileNotFoundError:
             logging.error("Terms and conditions file not found.")
@@ -785,6 +694,24 @@ class AICarRentalInterface:
                 f.write(f"[{timestamp}] user={user} event={event} details={details}\n")
         except Exception as e:
             logging.error(f"Failed to write audit log: {str(e)}")
+
+    _help_text = (
+        "Available commands:\n"
+        "- help: Show this help message\n"
+        "- register: Register a new user\n"
+        "- login: Login to your account\n"
+        "- logout: Logout from your account\n"
+        "- view cars: View available cars\n"
+        "- book car: Book a car\n"
+        "- view bookings: View your bookings\n"
+        "- accept terms: Accept the terms and conditions\n"
+        "- show terms: View the terms and conditions\n"
+        "- exit: Exit the application\n"
+        "Admin commands: ..."
+    )
+
+    def _get_help_text(self) -> str:
+        return self._help_text
 
 # Optionally, add a main entry point for CLI usage
 if __name__ == "__main__":
