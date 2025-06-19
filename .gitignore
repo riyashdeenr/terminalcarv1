@@ -6,5 +6,3 @@ secrets.txt
 
 # Ignore a folder and everything inside it
 temp/
-
-config.py

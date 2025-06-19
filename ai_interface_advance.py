@@ -38,6 +38,7 @@ import ssl
 import logging
 from google import genai
 from google.genai import types
+from terms_manager import read_and_decrypt_terms
 
 # Configure SSL
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -308,6 +309,7 @@ class AICarRentalInterface:
             "CANCEL_BOOKING": ["cancel booking", "cancel my booking", "delete booking"],
             "HELP": ["help", "commands", "?"],
             "EXIT": ["exit", "quit"],
+            "VIEW_TERMS": ["view terms", "see terms", "view t&c", "show t&c", "show terms", "terms"],
             "ACCEPT_TERMS": ["accept terms", "agree terms", "accept t&c", "agree t&c"]
         }
         for command, patterns in command_patterns.items():
@@ -610,6 +612,16 @@ class AICarRentalInterface:
                 except Exception as e:
                     logging.error(f"View all revenue error: {str(e)}")
                     return "An error occurred while retrieving revenue statistics. Please try again."
+                
+            elif command == "VIEW_TERMS":
+                try:
+                    result = read_and_decrypt_terms()
+                    return result
+                except Exception as e:
+                    logging.error(f"View T&C error: {str(e)}")
+                    return "An error occurred while retrieving terms and conditions. Please try again."
+                
+
             elif command == "HELP":
                 help_text = "\nAvailable Commands:\n"
                 help_text += "- login: Log into your account\n"
@@ -755,10 +767,7 @@ class AICarRentalInterface:
     def view_terms_and_conditions(self) -> str:
         logging.info("Displaying terms and conditions.")
         try:
-            with open("terms_conditions.enc", "r") as f:
-                encrypted_terms = f.read()
-            key = "SecureCarRental2024"
-            decrypted_terms = SecurityUtils.decrypt_data(encrypted_terms, key)
+            decrypted_terms = read_and_decrypt_terms()
             return decrypted_terms + "\nType 'accept terms' to agree."
         except FileNotFoundError:
             logging.error("Terms and conditions file not found.")

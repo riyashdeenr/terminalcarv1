@@ -32,79 +32,10 @@ from admin_functions import AdminManager
 from gemini import get_ai_response
 from terms_manager import read_and_decrypt_terms
 
-# def save_encrypted_terms():
-#     """Save encrypted terms and conditions file"""
-#     try:
-#         terms_content = """
-#         SECURE CAR RENTAL TERMS AND CONDITIONS
-        
-#         1. RENTAL AGREEMENT
-#         This agreement constitutes the entire rental contract between the customer and Secure Car Rental.
-        
-#         2. DRIVER REQUIREMENTS
-#         - Must be at least 21 years of age
-#         - Valid driver's license required
-#         - Clean driving record preferred
-        
-#         3. VEHICLE CONDITION
-#         - Vehicle must be returned in same condition as received
-#         - Interior and exterior cleaning required
-#         - Fuel level must match pickup level
-        
-#         4. SECURITY DEPOSIT
-#         - Required for all rentals
-#         - Refunded upon satisfactory vehicle return
-#         - May be used for damages or violations
-        
-#         5. INSURANCE COVERAGE
-#         - Basic coverage included
-#         - Additional coverage available
-#         - Customer responsible for deductibles
-        
-#         6. PROHIBITED USES
-#         - No smoking in vehicles
-#         - No pets without prior approval
-#         - No off-road driving
-#         - No racing or competitive events
-        
-#         7. CANCELLATION POLICY
-#         - 24-hour advance notice required
-#         - Fees may apply for late cancellations
-#         - Emergency cancellations considered case-by-case
-        
-#         8. LIABILITY
-#         - Customer liable for traffic violations
-#         - Customer liable for parking tickets
-#         - Customer liable for vehicle damage
-        
-#         9. LATE RETURNS
-#         - Grace period: 30 minutes
-#         - Late fees apply after grace period
-#         - Daily rate charged for overnight delays
-        
-#         10. AGREEMENT ACCEPTANCE
-#         By booking a vehicle, customer agrees to all terms and conditions herein.
-#         """
-#         # Encrypt and save
-#         key = "SecureCarRental2024"
-#         encrypted_terms = SecurityUtils.encrypt_data(terms_content, key)
-#         with open("terms_conditions.enc", "w") as f:
-#             f.write(encrypted_terms)
-#         print("✅ Encrypted terms and conditions saved to terms_conditions.enc")
-#     except Exception as e:
-#         print(f"Error saving encrypted terms and conditions: {str(e)}")
 
 def display_terms_and_conditions():
     """Display decrypted terms and conditions"""
-    try:
-        # # Read encrypted terms
-        # with open("terms_conditions.enc", "r") as f:
-        #     encrypted_terms = f.read()
-        
-        # # Decrypt terms using the same key used for encryption
-        # key = "SecureCarRental2024"
-        # decrypted_terms = SecurityUtils.decrypt_data(encrypted_terms, key)
-        
+    try:     
         print("\n=== TERMS AND CONDITIONS ===")
         decrypted_tNc = read_and_decrypt_terms()
         print(decrypted_tNc)
@@ -779,6 +710,4 @@ def main():
                     is_admin = False
 
 if __name__ == "__main__":
-    # Save encrypted terms and conditions
-    # save_encrypted_terms()
     main()
