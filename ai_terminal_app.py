@@ -201,7 +201,7 @@ class GeminiCarRentalTerminal:
     def show_available_cars(self, category: str = None) -> str:
         """Show available cars"""
         try:
-            cars = self.car_manager.show_available_cars()
+            cars = self.car_manager.get_available_cars()
             if not cars:
                 return "ℹ️ No cars are currently available for rental."
             
@@ -889,65 +889,136 @@ class GeminiCarRentalTerminal:
                 result += f"📅 **Monthly Revenue:** No revenue data for the specified period.\n"
             
             return result.strip()
-              except Exception as e:
+            
+        except Exception as e:
             return f"❌ Error retrieving car revenue details: {str(e)}"
-    
+
     def process_user_input(self, user_input: str) -> str:
-        """Process user input using pattern matching and AI fallback."""
+        """Process user input using Gemini AI with function calling."""
         if not self.client:
             return "❌ AI features are not available. Please check your API configuration."
         
         try:
-            # First try to match common patterns for admin functions
-            user_input_lower = user_input.lower()
+            # Create the system prompt for the AI
+            system_prompt = """
+You are an AI assistant for a car rental system. You have access to various functions to help users.
+
+Key guidelines:
+- ALWAYS call the appropriate function for user requests, even if information is missing
+- For booking requests, ALWAYS call 'create_booking' even with partial info - the system will guide the user
+- For cancellation requests, ALWAYS call 'cancel_booking' even if booking ID is missing
+- For admin requests (revenue, assets, etc.), check if user is admin and call appropriate functions
+- Be helpful and conversational while ensuring accurate function calls
+
+Available functions will be automatically provided to you.
+"""
             
-            # Asset details patterns
-            if "asset detail" in user_input_lower:
-                import re
-                car_id_match = re.search(r'car (?:id )?(\d+)', user_input_lower)
-                if car_id_match:
-                    return self.get_asset_details(car_id_match.group(1))
-                else:
-                    return self.get_asset_details("")
+            # Create function calling messages
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_input}
+            ]
             
-            # Revenue statistics patterns
-            if "revenue stat" in user_input_lower or "revenue summary" in user_input_lower:
-                return self.get_revenue_stats("", "")
-            
-            # Asset report patterns  
-            if "asset report" in user_input_lower:
-                return self.generate_asset_report("", "")
-            
-            # Car revenue details patterns
-            if "car revenue" in user_input_lower or "revenue detail" in user_input_lower:
-                import re
-                car_id_match = re.search(r'car (?:id )?(\d+)', user_input_lower)
-                if car_id_match:
-                    return self.get_car_revenue_details(car_id_match.group(1), "", "")
-                else:
-                    return self.get_car_revenue_details("", "", "")
-            
-            # Fallback to simple AI without function calling
+            # Try to use function calling first, fall back to simple generation
             try:
+                # Create function definitions for Gemini
+                functions = self._define_functions()
+                
+                # Format tools for the newer API
+                tools = []
+                function_declarations = []
+                for func_name, func_def in functions.items():
+                    function_declaration = {
+                        "name": func_name,
+                        "description": func_def["description"],
+                        "parameters": {
+                            "type": "object",
+                            "properties": func_def.get("parameters", {}),
+                            "required": []  # Make all parameters optional
+                        }
+                    }
+                    function_declarations.append(function_declaration)
+                
+                if function_declarations:
+                    tools = [types.Tool(function_declarations=function_declarations)]
+                
+                # Generate response with function calling
                 response = self.client.models.generate_content(
                     model=self.model_name,
-                    contents=user_input
+                    contents=messages,
+                    tools=tools if tools else None
                 )
                 
-                ai_response = response.text if response.text else "I'm here to help with your car rental needs!"
+                # Handle function calls
+                if hasattr(response.candidates[0].content, 'parts'):
+                    for part in response.candidates[0].content.parts:
+                        if hasattr(part, 'function_call'):
+                            function_call = part.function_call
+                            function_name = function_call.name
+                            function_args = dict(function_call.args) if function_call.args else {}
+                              # Execute the function
+                            result = self.call_tool(function_name, function_args)
+                            return result
                 
-                # Add helpful suggestions based on context
+                # If no function call, return the text response
+                return response.text if response.text else "I'm here to help! You can ask me about cars, bookings, or use commands like 'show cars', 'login', etc."
+                
+            except Exception as api_error:
+                # Pattern matching fallback for common commands when AI fails
+                user_input_lower = user_input.lower()
+                
+                # Show cars commands
+                if any(phrase in user_input_lower for phrase in ['show cars', 'available cars', 'view cars', 'see cars', 'list cars', 'get cars']):
+                    return self.show_available_cars()
+                
+                # Login commands
+                if any(phrase in user_input_lower for phrase in ['login', 'log in', 'sign in']):
+                    return "🔐 Please provide your login credentials:\n• Email: \n• Password: \n\nOr say 'login [email] [password]'"
+                
+                # Register commands
+                if any(phrase in user_input_lower for phrase in ['register', 'sign up', 'create account']):
+                    return "📝 To register, please provide:\n• Email: \n• Password: \n• National ID: \n\nOr say 'register [email] [password] [national_id]'"
+                
+                # Booking commands
+                if any(phrase in user_input_lower for phrase in ['book', 'rent', 'reserve']):
+                    if not self.current_user:
+                        return "❌ You must be logged in to book a car. Please login first."
+                    return "🚗 To book a car, I need:\n• Car ID (use 'show cars' to see available cars)\n• Start date (YYYY-MM-DD)\n• Duration in days\n\nOr say 'book car [ID] for [days] days starting [date]'"
+                
+                # View bookings
+                if any(phrase in user_input_lower for phrase in ['my booking', 'view booking', 'see booking', 'check booking']):
+                    return self.view_user_bookings()
+                
+                # Admin functions (if user is admin)
                 if self.is_admin:
-                    ai_response += "\n\n💡 **Admin Functions Available:**"
-                    ai_response += "\n• 'Get asset details for car [ID]'"
-                    ai_response += "\n• 'Show revenue statistics'"
-                    ai_response += "\n• 'Generate asset report'"
-                    ai_response += "\n• 'Get car revenue details for car [ID]'"
+                    if 'asset detail' in user_input_lower:
+                        return self.get_asset_details("")
+                    if 'revenue stat' in user_input_lower:
+                        return self.get_revenue_stats("", "")
+                    if 'asset report' in user_input_lower:
+                        return self.generate_asset_report("", "")
                 
-                return ai_response
-                
-            except Exception as e:
-                return f"I can help you with car rental tasks. What would you like to do? (AI Error: {str(e)})"
+                # Fallback to simple generation without function calling
+                try:
+                    response = self.client.models.generate_content(
+                        model=self.model_name,
+                        contents=user_input
+                    )
+                    
+                    ai_response = response.text if response.text else "I'm here to help with your car rental needs!"
+                    
+                    # Add contextual suggestions
+                    if self.current_user is None:
+                        ai_response += "\n\n💡 Try: 'login', 'register', or 'show cars'"
+                    elif self.is_admin:
+                        ai_response += "\n\n💡 Admin commands: 'asset details', 'revenue stats', 'asset report'"
+                    else:
+                        ai_response += "\n\n💡 Try: 'book a car', 'my bookings', or 'show cars'"
+                    
+                    return ai_response
+                    
+                except Exception as fallback_error:
+                    return f"I can help you with car rental tasks. What would you like to do? (API Error: {str(fallback_error)})"
             
         except Exception as e:
             import traceback
