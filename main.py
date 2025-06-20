@@ -3,6 +3,7 @@
 Secure Car Rental Management System
 Educational Implementation with AI Integration
 """
+import getpass
 import hashlib
 import secrets
 import base64
@@ -673,14 +674,14 @@ def main():
             
             if choice == "1":
                 email = input("Email: ").strip()
-                password = input("Password: ").strip()
+                password = getpass.getpass("Password: ").strip()
                 national_id = input("National ID: ").strip()
                 success, msg = auth_manager.register_user(email, password, national_id)
                 print(msg)
             
             elif choice == "2":
                 email = input("Email: ").strip()
-                password = input("Password: ").strip()
+                password = getpass.getpass("Password: ").strip()
                 success, msg, user_info = auth_manager.login(email, password)
                 print(msg)
                 if success:
