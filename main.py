@@ -670,17 +670,17 @@ def main():
             print("\n1. Register")
             print("2. Login")
             print("3. Exit")
-            choice = input("Choose an option: ").strip()
+            choice = SecurityUtils.sanitize_input(input("Choose an option: ").strip())
             
             if choice == "1":
-                email = input("Email: ").strip()
+                email = SecurityUtils.sanitize_input(input("Email: ").strip())
                 password = getpass.getpass("Password: ").strip()
-                national_id = input("National ID: ").strip()
+                national_id = SecurityUtils.sanitize_input(input("National ID: ").strip())
                 success, msg = auth_manager.register_user(email, password, national_id)
                 print(msg)
             
             elif choice == "2":
-                email = input("Email: ").strip()
+                email = SecurityUtils.sanitize_input(input("Email: ").strip())
                 password = getpass.getpass("Password: ").strip()
                 success, msg, user_info = auth_manager.login(email, password)
                 print(msg)
