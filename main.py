@@ -678,6 +678,7 @@ def main():
                 national_id = SecurityUtils.sanitize_input(input("National ID: ").strip())
                 success, msg = auth_manager.register_user(email, password, national_id)
                 print(msg)
+                db_manager.log_audit_event(None, "Register", f"User registered: {email}")
             
             elif choice == "2":
                 email = SecurityUtils.sanitize_input(input("Email: ").strip())
@@ -688,6 +689,7 @@ def main():
                     session_token = user_info['session_token']
                     user_id = user_info['user_id']
                     is_admin = user_info['role'] == 'admin'
+                    db_manager.log_audit_event(None, "Login", f"User login: {email}")
             
             elif choice == "3":
                 print("Goodbye!")
@@ -698,6 +700,7 @@ def main():
                 if display_admin_menu(admin_manager, car_manager):
                     if auth_manager.logout(session_token):
                         print("Logged out successfully.")
+                        db_manager.log_audit_event(None, "logout", f"logout: {email}")
                     else:
                         print("Logout failed.")
                     session_token = None
